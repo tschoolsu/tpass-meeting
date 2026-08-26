@@ -6,9 +6,13 @@ import {
   isAdmin,
   isModerator,
   requireAccess,
+  requireAdmin,
   requireManager,
 } from "@/lib/auth";
 import { isStarted } from "@/lib/time";
+import { createApiKey, revokeApiKey } from "@/lib/api-keys";
+import { importAll } from "@/lib/backup";
+import { saveBgm, MAX_BGM_BYTES } from "@/lib/bgm";
 import {
   addNote,
   createMeeting,
@@ -129,5 +133,69 @@ export async function noteAction(meetingId: number, body: string): Promise<FormS
 
   await addNote(meetingId, { email: session.email, name: session.name }, text);
   revalidatePath(`/read?id=${meetingId}`);
+  return {};
+}
+
+// ---- 管理面板（僅 admin） ----
+
+export async function importMeetingsAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState & { count?: number }> {
+  await requireAdmin();
+  const file = formData.get("file");
+  if (!(file instanceof File)) return { error: "請選擇要匯入的 JSON 檔案" };
+  if (file.size > 10 * 1024 * 1024) return { error: "匯入檔案不可超過 10 MB" };
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch {
+    return { error: "JSON 解析失敗" };
+  }
+  try {
+    const count = await importAll(parsed);
+    revalidatePath("/");
+    revalidatePath("/panel");
+    return { count };
+  } catch (err) {
+    return {
+      error: err instanceof ValidationError ? err.message : "匯入失敗，請檢查檔案內容",
+    };
+  }
+}
+
+export async function uploadBgmAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState & { saved?: boolean }> {
+  await requireAdmin();
+  const file = formData.get("bgm");
+  if (!(file instanceof File)) return { error: "請選擇 mp3 檔案" };
+  if (file.size > MAX_BGM_BYTES) return { error: "BGM 檔案不可超過 10 MB" };
+  if (file.type !== "audio/mpeg" && !file.name.toLowerCase().endsWith(".mp3")) {
+    return { error: "僅支援 mp3 檔案" };
+  }
+  await saveBgm(Buffer.from(await file.arrayBuffer()));
+  revalidatePath("/panel");
+  return { saved: true };
+}
+
+export async function createApiKeyAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState & { key?: string }> {
+  await requireAdmin();
+  const label = String(formData.get("label") ?? "").trim();
+  if (!label || label.length > 100) return { error: "請輸入金鑰名稱（100 字內）" };
+  const key = await createApiKey(label);
+  revalidatePath("/panel");
+  return { key };
+}
+
+export async function revokeApiKeyAction(id: number): Promise<FormState> {
+  await requireAdmin();
+  await revokeApiKey(id);
+  revalidatePath("/panel");
   return {};
 }

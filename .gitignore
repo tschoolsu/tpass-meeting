@@ -45,3 +45,6 @@ next-env.d.ts
 
 # logs (pm2)
 /logs
+
+# uploads (BGM)
+/uploads

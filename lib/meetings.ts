@@ -142,6 +142,43 @@ export async function getMeetingDetail(id: number): Promise<MeetingDetail | null
   };
 }
 
+export async function getVoteResults(voteId: number) {
+  const { rows } = await query<{ id: number }>(
+    `SELECT id FROM votes WHERE id = $1`,
+    [voteId],
+  );
+  if (rows.length === 0) return null;
+
+  const { rows: questions } = await query<VoteQuestionWithCount>(
+    `SELECT q.id, q.vote_id, q.question, q.position,
+            COUNT(b.id) FILTER (WHERE b.answer)::int AS yes,
+            COUNT(b.id) FILTER (WHERE NOT b.answer)::int AS no
+       FROM vote_questions q
+       LEFT JOIN ballots b ON b.question_id = q.id
+      WHERE q.vote_id = $1
+      GROUP BY q.id
+      ORDER BY q.position ASC, q.id ASC`,
+    [voteId],
+  );
+
+  return {
+    vote_id: voteId,
+    questions: questions.map((q) => {
+      const total = q.yes + q.no;
+      const pct = (n: number) => (total ? Math.round((n / total) * 1000) / 10 : 0);
+      return {
+        id: q.id,
+        question: q.question,
+        yes: q.yes,
+        no: q.no,
+        total,
+        yes_percent: pct(q.yes),
+        no_percent: pct(q.no),
+      };
+    }),
+  };
+}
+
 export async function isParticipant(meetingId: number, email: string): Promise<boolean> {
   const { rows } = await query<{ one: number }>(
     `SELECT 1 AS one FROM participants WHERE meeting_id = $1 AND email = $2`,

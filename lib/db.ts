@@ -84,6 +84,15 @@ export async function initDb(): Promise<void> {
       created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
     );
     CREATE INDEX IF NOT EXISTS idx_notes_meeting ON meeting_notes (meeting_id, id DESC);
+
+    CREATE TABLE IF NOT EXISTS api_keys (
+      id           SERIAL PRIMARY KEY,
+      label        TEXT NOT NULL,
+      key_hash     TEXT NOT NULL UNIQUE,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_used_at TIMESTAMPTZ,
+      revoked      BOOLEAN NOT NULL DEFAULT FALSE
+    );
   `);
 }
 

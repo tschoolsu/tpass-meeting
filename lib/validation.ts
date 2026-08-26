@@ -66,3 +66,19 @@ export function parseMeeting(formData: FormData): MeetingInput {
     questions: votingEnabled ? parseQuestions(String(formData.get("questions") ?? "")) : [],
   };
 }
+
+// API 建立會議用：接受 JSON body（participants / questions 可為陣列或換行字串）。
+export function parseMeetingPayload(body: unknown): MeetingInput {
+  if (typeof body !== "object" || body === null) throw new ValidationError("請求內容格式不正確");
+  const b = body as Record<string, unknown>;
+  const votingEnabled = b.voting_enabled === true;
+  const toLines = (v: unknown) => (Array.isArray(v) ? v.map(String).join("\n") : String(v ?? ""));
+  return {
+    title: parseTitle(String(b.title ?? "")),
+    department: String(b.department ?? "").trim(),
+    startsAt: parseStartsAt(String(b.starts_at ?? "")),
+    participantEmails: parseParticipants(toLines(b.participants)),
+    votingEnabled,
+    questions: votingEnabled ? parseQuestions(toLines(b.questions)) : [],
+  };
+}

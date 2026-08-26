@@ -108,3 +108,10 @@ export async function requireManager(returnPath = "/"): Promise<TPassClaims> {
   if (!isModerator(session)) redirect(portalUrl());
   return session;
 }
+
+// 管理面板與進階管理功能只有 admin。
+export async function requireAdmin(returnPath = "/panel"): Promise<TPassClaims> {
+  const session = await requireAccess(returnPath);
+  if (!isAdmin(session)) redirect(portalUrl());
+  return session;
+}

@@ -7,10 +7,12 @@ import {
   getMyAnsweredQuestionIds,
 } from "@/lib/meetings";
 import { formatTaipei, isStarted } from "@/lib/time";
+import { hasBgm } from "@/lib/bgm";
 import { PieChart } from "@/components/pie-chart";
 import { NoteBar } from "@/components/note-bar";
 import { DeleteMeetingButton } from "@/components/delete-meeting";
 import { CopyLinkButton } from "@/components/copy-link";
+import { BgmPlayer } from "@/components/bgm-player";
 import { BtnLink, Card, Tag } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +35,8 @@ export default async function ReadPage({
   const detail = await getMeetingDetail(id);
   if (!detail) notFound();
 
+  const [bgm] = await Promise.all([hasBgm()]);
+
   const { meeting, participants, notes } = detail;
   const vote = detail.vote;
   const isAdminUser = isAdmin(session);
@@ -54,6 +58,7 @@ export default async function ReadPage({
 
   return (
     <div className="mx-auto max-w-3xl">
+      {bgm ? <BgmPlayer /> : null}
       <Link
         href="/"
         className="inline-flex items-center gap-1.5 rounded-xl border-2 border-foreground bg-card px-3.5 py-2 text-sm font-bold shadow-[3px_3px_0_0_var(--color-foreground)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_0_var(--color-foreground)] active:translate-y-0 active:shadow-[2px_2px_0_0_var(--color-foreground)]"
