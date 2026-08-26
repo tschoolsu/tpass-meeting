@@ -12,7 +12,7 @@ import type {
 type Variant = "default" | "primary" | "accent" | "destructive" | "tone";
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-xl border-2 border-foreground font-bold " +
+  "inline-flex items-center justify-center gap-2 rounded-xl border-2 border-foreground px-4 py-2.5 font-bold " +
   "shadow-[3px_3px_0_0_var(--color-foreground)] transition-all duration-200 " +
   "hover:-translate-y-0.5 hover:shadow-[5px_5px_0_0_var(--color-foreground)] " +
   "active:translate-y-0 active:shadow-[2px_2px_0_0_var(--color-foreground)] " +

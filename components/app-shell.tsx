@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { getPermissionEntry, getSession, isModerator } from "@/lib/auth";
+import { getPermissionEntry, getSession } from "@/lib/auth";
 import { AccessGate } from "@/components/access-gate";
 
 const roleLabel: Record<string, string> = {
@@ -27,15 +27,6 @@ export async function AppShell({ children }: { children: ReactNode }) {
           </Link>
 
           <div className="flex items-center gap-2">
-            {isModerator(session) ? (
-              <Link
-                href="/create"
-                className="inline-flex items-center gap-1.5 rounded-xl border-2 border-foreground bg-accent/10 px-3.5 py-2 text-sm font-bold shadow-[3px_3px_0_0_var(--color-foreground)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_0_var(--color-foreground)] active:translate-y-0 active:shadow-[2px_2px_0_0_var(--color-foreground)]"
-              >
-                管理面板
-              </Link>
-            ) : null}
-
             <div className="flex items-center gap-2.5 rounded-xl border-2 border-foreground bg-card px-3.5 py-1.5 shadow-[3px_3px_0_0_var(--color-foreground)]">
               <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-foreground bg-tone-badge font-mono text-xs font-extrabold">
                 {userName.trim().charAt(0) || "?"}
