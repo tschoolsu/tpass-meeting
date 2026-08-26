@@ -11,9 +11,12 @@ import { formatDate } from "@/components/meeting-card";
 import { PieChart } from "@/components/pie-chart";
 import { NoteBar } from "@/components/note-bar";
 import { DeleteMeetingButton } from "@/components/delete-meeting";
+import { CopyLinkButton } from "@/components/copy-link";
 import { BtnLink, Card, Tag } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
+
+const selfUrl = process.env.SERVICE_SELF_URL || "https://meeting.tschoolsu.org";
 
 export default async function ReadPage({
   searchParams,
@@ -118,6 +121,14 @@ export default async function ReadPage({
             </BtnLink>
           ) : meeting.voting_enabled && canVote ? (
             <Tag className="bg-tone-badge">你已完成所有表決</Tag>
+          ) : null}
+        </div>
+
+        <div className="mt-5 flex flex-wrap items-center gap-2 border-t-2 border-dashed border-foreground/30 pt-4">
+          <span className="text-xs font-bold text-muted-foreground">分享連結：</span>
+          <CopyLinkButton url={`${selfUrl}/checkin?id=${id}`} label="複製簽到連結" />
+          {meeting.voting_enabled && votes.length > 0 ? (
+            <CopyLinkButton url={`${selfUrl}/vote?id=${votes[0].id}`} label="複製表決連結" />
           ) : null}
         </div>
       </Card>
