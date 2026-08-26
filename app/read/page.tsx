@@ -3,9 +3,8 @@ import { notFound } from "next/navigation";
 import { isAdmin, isModerator, requireAccess } from "@/lib/auth";
 import {
   countUnanswered,
-  getFirstUnansweredVote,
   getMeetingDetail,
-  getMyVotedVoteIds,
+  getMyAnsweredQuestionIds,
 } from "@/lib/meetings";
 import { formatDate } from "@/components/meeting-card";
 import { PieChart } from "@/components/pie-chart";
@@ -34,7 +33,8 @@ export default async function ReadPage({
   const detail = await getMeetingDetail(id);
   if (!detail) notFound();
 
-  const { meeting, participants, votes, notes } = detail;
+  const { meeting, participants, notes } = detail;
+  const vote = detail.vote;
   const isAdminUser = isAdmin(session);
   const canEdit = isAdminUser || meeting.owner_sub === session.sub;
   const isMeParticipant = participants.some((p) => p.email === session.email);
@@ -44,13 +44,12 @@ export default async function ReadPage({
   const notCheckedIn = participants.filter((p) => !p.checked_in);
   const checkedCount = participants.length - notCheckedIn.length;
 
-  const [unanswered, firstVoteId, myVoted] = meeting.voting_enabled && canVote
+  const [unanswered, myAnswered] = meeting.voting_enabled && canVote && vote
     ? await Promise.all([
         countUnanswered(id, session.email),
-        getFirstUnansweredVote(id, session.email),
-        getMyVotedVoteIds(id, session.email),
+        getMyAnsweredQuestionIds(id, session.email),
       ])
-    : [0, null, new Set<number>()];
+    : [0, new Set<number>()];
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -115,11 +114,11 @@ export default async function ReadPage({
             <Tag className="bg-tone-badge">你已完成簽到</Tag>
           ) : null}
 
-          {meeting.voting_enabled && canVote && firstVoteId ? (
-            <BtnLink href={`/vote?id=${firstVoteId}`} variant="primary">
+          {meeting.voting_enabled && canVote && vote && unanswered > 0 ? (
+            <BtnLink href={`/vote?id=${vote.id}`} variant="primary">
               前往表決（尚有 {unanswered} 題）
             </BtnLink>
-          ) : meeting.voting_enabled && canVote ? (
+          ) : meeting.voting_enabled && canVote && vote ? (
             <Tag className="bg-tone-badge">你已完成所有表決</Tag>
           ) : null}
         </div>
@@ -127,23 +126,23 @@ export default async function ReadPage({
         <div className="mt-5 flex flex-wrap items-center gap-2 border-t-2 border-dashed border-foreground/30 pt-4">
           <span className="text-xs font-bold text-muted-foreground">分享連結：</span>
           <CopyLinkButton url={`${selfUrl}/checkin?id=${id}`} label="複製簽到連結" />
-          {meeting.voting_enabled && votes.length > 0 ? (
-            <CopyLinkButton url={`${selfUrl}/vote?id=${votes[0].id}`} label="複製表決連結" />
+          {vote ? (
+            <CopyLinkButton url={`${selfUrl}/vote?id=${vote.id}`} label="複製表決連結" />
           ) : null}
         </div>
       </Card>
 
-      {meeting.voting_enabled ? (
+      {meeting.voting_enabled && vote ? (
         <section className="mt-8">
           <h2 className="mb-3 text-lg font-extrabold">表決結果</h2>
           <div className="flex flex-col gap-4">
-            {votes.map((v) => (
+            {vote.questions.map((v) => (
               <PieChart
                 key={v.id}
                 title={v.question}
                 yes={v.yes}
                 no={v.no}
-                answeredByMe={myVoted.has(v.id)}
+                answeredByMe={myAnswered.has(v.id)}
               />
             ))}
           </div>

@@ -47,11 +47,10 @@ export default async function VotePage({
     <div className="flex min-h-[60vh] flex-col items-center justify-center">
       <VoteFlow
         voteId={flow.vote.id}
-        question={flow.vote.question}
         meetingId={flow.meeting.id}
         meetingTitle={flow.meeting.title}
-        alreadyVoted={flow.alreadyVoted}
-        nextVoteId={flow.nextVoteId}
+        questions={flow.questions.map((q) => ({ id: q.id, question: q.question }))}
+        answeredIds={[...flow.answered]}
       />
     </div>
   );

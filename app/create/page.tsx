@@ -43,7 +43,7 @@ export default async function CreatePage({
       meetingDate: detail.meeting.meeting_date,
       participants: detail.participants.map((p) => p.email).join("\n"),
       votingEnabled: detail.meeting.voting_enabled,
-      questions: detail.votes.map((v) => v.question).join("\n"),
+      questions: detail.vote ? detail.vote.questions.map((v) => v.question).join("\n") : "",
     };
   }
 

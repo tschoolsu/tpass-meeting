@@ -90,22 +90,25 @@ export async function checkInAction(meetingId: number): Promise<FormState & { do
 
 export async function voteAction(
   voteId: number,
+  questionId: number,
   answer: boolean,
-): Promise<FormState & { nextVoteId?: number | null }> {
+): Promise<FormState> {
   const session = await requireAccess();
   const flow = await getVoteFlow(voteId, session.email);
   if (!flow) return { error: "找不到這份表決" };
   if (!(await isParticipant(flow.meeting.id, session.email))) {
     return { error: "你未被邀請參與這場會議的表決" };
   }
-  if (flow.alreadyVoted) return { error: "你已經完成這題的表決，無法更改" };
+  const question = flow.questions.find((q) => q.id === questionId);
+  if (!question) return { error: "找不到這道表決題目" };
+  if (flow.answered.has(questionId)) return { error: "你已經完成這題的表決，無法更改" };
 
-  const status = await submitBallot(voteId, session.email, answer);
+  const status = await submitBallot(questionId, session.email, answer);
   if (status === "duplicate") return { error: "你已經完成這題的表決，無法更改" };
 
   revalidatePath(`/read?id=${flow.meeting.id}`);
   revalidatePath(`/vote?id=${voteId}`);
-  return { nextVoteId: flow.nextVoteId };
+  return {};
 }
 
 export async function noteAction(meetingId: number, body: string): Promise<FormState> {

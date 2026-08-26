@@ -20,6 +20,10 @@ export async function initDb(): Promise<void> {
   if (initialized) return;
   initialized = true;
 
+  // 舊版 schema（votes 一題一列、ballots 用 vote_id 記票）與新版欄位衝突，
+  // 需先清掉再建立新表，否則 CREATE INDEX 會撞上舊欄位。
+  await migrateLegacyVoteShape();
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS meetings (
       id            SERIAL PRIMARY KEY,
@@ -47,22 +51,27 @@ export async function initDb(): Promise<void> {
 
     CREATE TABLE IF NOT EXISTS votes (
       id          SERIAL PRIMARY KEY,
-      meeting_id  INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
-      question    TEXT NOT NULL CHECK (char_length(question) BETWEEN 1 AND 500),
-      position    INTEGER NOT NULL DEFAULT 0,
+      meeting_id  INTEGER NOT NULL UNIQUE REFERENCES meetings(id) ON DELETE CASCADE,
       created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
     );
-    CREATE INDEX IF NOT EXISTS idx_votes_meeting ON votes (meeting_id, position);
+
+    CREATE TABLE IF NOT EXISTS vote_questions (
+      id       SERIAL PRIMARY KEY,
+      vote_id  INTEGER NOT NULL REFERENCES votes(id) ON DELETE CASCADE,
+      question TEXT NOT NULL CHECK (char_length(question) BETWEEN 1 AND 500),
+      position INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_vote_questions_vote ON vote_questions (vote_id, position);
 
     CREATE TABLE IF NOT EXISTS ballots (
       id          SERIAL PRIMARY KEY,
-      vote_id     INTEGER NOT NULL REFERENCES votes(id) ON DELETE CASCADE,
+      question_id INTEGER NOT NULL REFERENCES vote_questions(id) ON DELETE CASCADE,
       voter_email TEXT NOT NULL,
       answer      BOOLEAN NOT NULL,
       created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-      UNIQUE (vote_id, voter_email)
+      UNIQUE (question_id, voter_email)
     );
-    CREATE INDEX IF NOT EXISTS idx_ballots_vote ON ballots (vote_id);
+    CREATE INDEX IF NOT EXISTS idx_ballots_question ON ballots (question_id);
 
     CREATE TABLE IF NOT EXISTS meeting_notes (
       id           SERIAL PRIMARY KEY,
@@ -74,6 +83,18 @@ export async function initDb(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_notes_meeting ON meeting_notes (meeting_id, id DESC);
   `);
+}
+
+// 舊版 schema 沒有遷移價值（本系統仍在開發階段），直接重建乾淨的新表。
+async function migrateLegacyVoteShape(): Promise<void> {
+  const { rows } = await pool.query<{ exists: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'votes' AND column_name = 'question'
+     ) AS exists`,
+  );
+  if (!rows[0]?.exists) return;
+  await pool.query("DROP TABLE IF EXISTS ballots, vote_questions, votes CASCADE");
 }
 
 export async function query<T = Record<string, unknown>>(

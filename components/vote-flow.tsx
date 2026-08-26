@@ -2,51 +2,54 @@
 
 import { useState } from "react";
 import type { CSSProperties } from "react";
-import { useRouter } from "next/navigation";
 import { voteAction } from "@/lib/actions";
-import { BtnLink, Card, Tag } from "@/components/ui";
+import { BtnLink, Card } from "@/components/ui";
 
+interface VoteQuestion {
+  id: number;
+  question: string;
+}
+
+// 一場會議一個 vote id，內含多題；答完自動跳下一題，直到全部完成。
 export function VoteFlow({
   voteId,
-  question,
   meetingId,
   meetingTitle,
-  alreadyVoted,
-  nextVoteId,
+  questions,
+  answeredIds,
 }: {
   voteId: number;
-  question: string;
   meetingId: number;
   meetingTitle: string;
-  alreadyVoted: boolean;
-  nextVoteId: number | null;
+  questions: VoteQuestion[];
+  answeredIds: number[];
 }) {
-  const router = useRouter();
-  const [busy, setBusy] = useState<boolean | null>(null);
+  const [answered, setAnswered] = useState<Set<number>>(() => new Set(answeredIds));
+  const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(alreadyVoted && nextVoteId === null);
-  const [answered, setAnswered] = useState(alreadyVoted);
+
+  const total = questions.length;
+  const doneCount = answered.size;
+  const current = questions.find((q) => !answered.has(q.id));
 
   async function answer(value: boolean) {
-    if (busy !== null || answered || done) return;
-    setBusy(value);
+    if (!current || busyId !== null) return;
+    setBusyId(current.id);
     setError(null);
-    const res = await voteAction(voteId, value);
+    const res = await voteAction(voteId, current.id, value);
+    setBusyId(null);
     if (res.error) {
       setError(res.error);
-      setBusy(null);
       return;
     }
-    setBusy(null);
-    setAnswered(true);
-    if (res.nextVoteId) {
-      router.push(`/vote?id=${res.nextVoteId}`);
-    } else {
-      setDone(true);
-    }
+    setAnswered((prev) => {
+      const next = new Set(prev);
+      next.add(current.id);
+      return next;
+    });
   }
 
-  if (done) {
+  if (!current) {
     return (
       <Card className="relative mx-auto max-w-lg overflow-hidden py-12 text-center shadow-[6px_6px_0_0_var(--color-foreground)]">
         {Array.from({ length: 8 }, (_, i) => (
@@ -77,29 +80,16 @@ export function VoteFlow({
     );
   }
 
-  if (answered) {
-    return (
-      <Card className="mx-auto max-w-lg py-10 text-center shadow-[6px_6px_0_0_var(--color-foreground)]">
-        <Tag className="bg-tone-badge">已完成本題</Tag>
-        <h2 className="mt-4 text-xl font-extrabold">本題已送出，無法更改</h2>
-        <p className="mt-2 text-sm font-medium text-muted-foreground">你已回答「{question}」。</p>
-        <div className="mt-6 flex justify-center gap-2">
-          <BtnLink href={`/read?id=${meetingId}`}>返回會議</BtnLink>
-          {nextVoteId ? (
-            <BtnLink href={`/vote?id=${nextVoteId}`} variant="primary">
-              下一題 →
-            </BtnLink>
-          ) : null}
-        </div>
-      </Card>
-    );
-  }
-
   return (
     <Card className="mx-auto max-w-lg py-10 text-center shadow-[6px_6px_0_0_var(--color-foreground)]">
+      <div className="mb-4 flex items-center justify-center gap-2">
+        <span className="rounded-md border-2 border-foreground bg-tone-badge px-2 py-0.5 font-mono text-[11px] font-bold">
+          第 {doneCount + 1}／{total} 題
+        </span>
+      </div>
       <p className="font-mono text-xs font-bold text-muted-foreground">{meetingTitle}</p>
       <h1 className="mx-auto mt-4 max-w-md text-xl font-extrabold leading-snug sm:text-2xl">
-        您是否同意「{question}」
+        您是否同意「{current.question}」
       </h1>
       <p className="mt-2 text-xs font-medium text-muted-foreground">送出後無法更改，請確認你的意願。</p>
 
@@ -107,7 +97,7 @@ export function VoteFlow({
         <button
           type="button"
           onClick={() => answer(true)}
-          disabled={busy !== null}
+          disabled={busyId !== null}
           className="rounded-2xl border-2 border-foreground bg-primary px-6 py-8 text-xl font-extrabold text-primary-foreground shadow-[4px_4px_0_0_var(--color-foreground)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[6px_6px_0_0_var(--color-foreground)] active:translate-y-0 active:shadow-[2px_2px_0_0_var(--color-foreground)] disabled:opacity-40"
         >
           是
@@ -115,14 +105,14 @@ export function VoteFlow({
         <button
           type="button"
           onClick={() => answer(false)}
-          disabled={busy !== null}
+          disabled={busyId !== null}
           className="rounded-2xl border-2 border-foreground bg-destructive px-6 py-8 text-xl font-extrabold text-background shadow-[4px_4px_0_0_var(--color-foreground)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[6px_6px_0_0_var(--color-foreground)] active:translate-y-0 active:shadow-[2px_2px_0_0_var(--color-foreground)] disabled:opacity-40"
         >
           否
         </button>
       </div>
 
-      {busy !== null ? (
+      {busyId !== null ? (
         <p className="mt-5 text-sm font-bold text-muted-foreground">正在送出你的選擇…</p>
       ) : null}
       {error ? (

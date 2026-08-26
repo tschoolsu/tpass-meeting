@@ -25,14 +25,21 @@ export interface Participant {
   checked_in_at: string | null;
 }
 
-export interface Vote {
+// 一次表決 = 一場會議一個 vote id，內含多題（vote_questions）。
+export interface VoteSession {
   id: number;
   meeting_id: number;
+  created_at: string;
+}
+
+export interface VoteQuestion {
+  id: number;
+  vote_id: number;
   question: string;
   position: number;
 }
 
-export interface VoteWithCount extends Vote {
+export interface VoteQuestionWithCount extends VoteQuestion {
   yes: number;
   no: number;
 }
@@ -48,16 +55,17 @@ export interface MeetingNote {
 export interface MeetingDetail {
   meeting: Meeting;
   participants: Participant[];
-  votes: VoteWithCount[];
+  vote: { id: number; questions: VoteQuestionWithCount[] } | null;
   notes: MeetingNote[];
 }
 
 export interface VoteFlow {
   meeting: Meeting;
-  vote: Vote;
-  alreadyVoted: boolean;
-  myAnswer: boolean | null;
-  nextVoteId: number | null;
+  vote: VoteSession;
+  questions: VoteQuestionWithCount[];
+  answered: Set<number>;
+  firstUnansweredId: number | null;
+  remaining: number;
 }
 
 const meetingCols =
@@ -88,23 +96,16 @@ export async function getMeetingDetail(id: number): Promise<MeetingDetail | null
   const meeting = await getMeeting(id);
   if (!meeting) return null;
 
-  const [pRows, vRows, nRows] = await Promise.all([
+  const [voteRows, pRows, nRows] = await Promise.all([
+    query<VoteSession>(
+      `SELECT id, meeting_id, created_at FROM votes WHERE meeting_id = $1`,
+      [id],
+    ),
     query<Participant>(
       `SELECT id, email, checked_in, checked_in_at
          FROM participants
         WHERE meeting_id = $1
         ORDER BY checked_in DESC, email ASC`,
-      [id],
-    ),
-    query<VoteWithCount>(
-      `SELECT v.id, v.meeting_id, v.question, v.position,
-              COUNT(b.id) FILTER (WHERE b.answer)::int AS yes,
-              COUNT(b.id) FILTER (WHERE NOT b.answer)::int AS no
-         FROM votes v
-         LEFT JOIN ballots b ON b.vote_id = v.id
-        WHERE v.meeting_id = $1
-        GROUP BY v.id
-        ORDER BY v.position ASC, v.id ASC`,
       [id],
     ),
     query<MeetingNote>(
@@ -116,10 +117,25 @@ export async function getMeetingDetail(id: number): Promise<MeetingDetail | null
     ),
   ]);
 
+  const vote = voteRows.rows[0] ?? null;
+  const qRows = vote
+    ? await query<VoteQuestionWithCount>(
+        `SELECT q.id, q.vote_id, q.question, q.position,
+                COUNT(b.id) FILTER (WHERE b.answer)::int AS yes,
+                COUNT(b.id) FILTER (WHERE NOT b.answer)::int AS no
+           FROM vote_questions q
+           LEFT JOIN ballots b ON b.question_id = q.id
+          WHERE q.vote_id = $1
+          GROUP BY q.id
+          ORDER BY q.position ASC, q.id ASC`,
+        [vote.id],
+      )
+    : { rows: [], rowCount: 0 };
+
   return {
     meeting,
     participants: pRows.rows,
-    votes: vRows.rows,
+    vote: vote ? { id: vote.id, questions: qRows.rows } : null,
     notes: nRows.rows,
   };
 }
@@ -144,40 +160,29 @@ export async function countUnanswered(meetingId: number, email: string): Promise
   const { rows } = await query<{ count: number }>(
     `SELECT COUNT(*)::int AS count
        FROM votes v
-       LEFT JOIN ballots b ON b.vote_id = v.id AND b.voter_email = $2
+       JOIN vote_questions q ON q.vote_id = v.id
+       LEFT JOIN ballots b ON b.question_id = q.id AND b.voter_email = $2
       WHERE v.meeting_id = $1 AND b.id IS NULL`,
     [meetingId, email],
   );
   return rows[0]?.count ?? 0;
 }
 
-export async function getFirstUnansweredVote(meetingId: number, email: string): Promise<number | null> {
+export async function getMyAnsweredQuestionIds(meetingId: number, email: string): Promise<Set<number>> {
   const { rows } = await query<{ id: number }>(
-    `SELECT v.id
-       FROM votes v
-       LEFT JOIN ballots b ON b.vote_id = v.id AND b.voter_email = $2
-      WHERE v.meeting_id = $1 AND b.id IS NULL
-      ORDER BY v.position ASC, v.id ASC
-      LIMIT 1`,
-    [meetingId, email],
-  );
-  return rows[0]?.id ?? null;
-}
-
-export async function getMyVotedVoteIds(meetingId: number, email: string): Promise<Set<number>> {
-  const { rows } = await query<{ vote_id: number }>(
-    `SELECT b.vote_id
-       FROM ballots b
-       JOIN votes v ON v.id = b.vote_id
+    `SELECT q.id
+       FROM vote_questions q
+       JOIN votes v ON v.id = q.vote_id
+       JOIN ballots b ON b.question_id = q.id
       WHERE v.meeting_id = $1 AND b.voter_email = $2`,
     [meetingId, email],
   );
-  return new Set(rows.map((r) => r.vote_id));
+  return new Set(rows.map((r) => r.id));
 }
 
 export async function getVoteFlow(voteId: number, email: string): Promise<VoteFlow | null> {
-  const { rows } = await query<Vote>(
-    `SELECT id, meeting_id, question, position FROM votes WHERE id = $1`,
+  const { rows } = await query<VoteSession>(
+    `SELECT id, meeting_id, created_at FROM votes WHERE id = $1`,
     [voteId],
   );
   const vote = rows[0];
@@ -186,27 +191,37 @@ export async function getVoteFlow(voteId: number, email: string): Promise<VoteFl
   const meeting = await getMeeting(vote.meeting_id);
   if (!meeting) return null;
 
-  const ballot = await query<{ answer: boolean }>(
-    `SELECT answer FROM ballots WHERE vote_id = $1 AND voter_email = $2`,
-    [voteId, email],
-  );
+  const [qRows, aRows] = await Promise.all([
+    query<VoteQuestionWithCount>(
+      `SELECT q.id, q.vote_id, q.question, q.position,
+              COUNT(b.id) FILTER (WHERE b.answer)::int AS yes,
+              COUNT(b.id) FILTER (WHERE NOT b.answer)::int AS no
+         FROM vote_questions q
+         LEFT JOIN ballots b ON b.question_id = q.id
+        WHERE q.vote_id = $1
+        GROUP BY q.id
+        ORDER BY q.position ASC, q.id ASC`,
+      [vote.id],
+    ),
+    query<{ question_id: number }>(
+      `SELECT question_id FROM ballots WHERE question_id IN (
+         SELECT id FROM vote_questions WHERE vote_id = $1
+       ) AND voter_email = $2`,
+      [vote.id, email],
+    ),
+  ]);
 
-  const next = await query<{ id: number }>(
-    `SELECT v.id
-       FROM votes v
-       LEFT JOIN ballots b ON b.vote_id = v.id AND b.voter_email = $2
-      WHERE v.meeting_id = $1 AND b.id IS NULL AND v.id <> $3
-      ORDER BY v.position ASC, v.id ASC
-      LIMIT 1`,
-    [meeting.id, email, vote.id],
-  );
+  const questions = qRows.rows;
+  const answered = new Set(aRows.rows.map((r) => r.question_id));
+  const firstUnanswered = questions.find((q) => !answered.has(q.id));
 
   return {
     meeting,
     vote,
-    alreadyVoted: ballot.rows.length > 0,
-    myAnswer: ballot.rows[0]?.answer ?? null,
-    nextVoteId: next.rows[0]?.id ?? null,
+    questions,
+    answered,
+    firstUnansweredId: firstUnanswered?.id ?? null,
+    remaining: questions.filter((q) => !answered.has(q.id)).length,
   };
 }
 
@@ -217,6 +232,25 @@ export interface MeetingInput {
   participantEmails: string[];
   votingEnabled: boolean;
   questions: string[];
+}
+
+async function insertQuestions(
+  client: import("pg").PoolClient,
+  voteId: number,
+  questions: string[],
+): Promise<void> {
+  const params: unknown[] = [];
+  const tuples = questions
+    .map((q, i) => {
+      const base = i * 3;
+      params.push(voteId, q, i);
+      return `($${base + 1}, $${base + 2}, $${base + 3})`;
+    })
+    .join(", ");
+  await client.query(
+    `INSERT INTO vote_questions (vote_id, question, position) VALUES ${tuples}`,
+    params,
+  );
 }
 
 export async function createMeeting(input: MeetingInput, owner: { sub: string; email: string; name: string }): Promise<number> {
@@ -243,15 +277,11 @@ export async function createMeeting(input: MeetingInput, owner: { sub: string; e
     }
 
     if (input.votingEnabled && input.questions.length > 0) {
-      const params: unknown[] = [];
-      const tuples = input.questions
-        .map((q, i) => {
-          const base = i * 3;
-          params.push(meetingId, q, i);
-          return `($${base + 1}, $${base + 2}, $${base + 3})`;
-        })
-        .join(", ");
-      await client.query(`INSERT INTO votes (meeting_id, question, position) VALUES ${tuples}`, params);
+      const vote = await client.query<{ id: number }>(
+        `INSERT INTO votes (meeting_id) VALUES ($1) RETURNING id`,
+        [meetingId],
+      );
+      await insertQuestions(client, vote.rows[0].id, input.questions);
     }
 
     await client.query("COMMIT");
@@ -295,18 +325,23 @@ export async function updateMeeting(id: number, input: MeetingInput, ownerSub: s
       );
     }
 
-    // 表決題目重設（已投的票會跟著題目被刪除，這是預期行為）。
-    await client.query(`DELETE FROM votes WHERE meeting_id = $1`, [id]);
-    if (input.votingEnabled && input.questions.length > 0) {
-      const params: unknown[] = [];
-      const tuples = input.questions
-        .map((q, i) => {
-          const base = i * 3;
-          params.push(id, q, i);
-          return `($${base + 1}, $${base + 2}, $${base + 3})`;
-        })
-        .join(", ");
-      await client.query(`INSERT INTO votes (meeting_id, question, position) VALUES ${tuples}`, params);
+    if (input.votingEnabled) {
+      // 確保投票 session 存在，重設題目（已投的票會跟著舊題目被刪除，這是預期行為）。
+      await client.query(
+        `INSERT INTO votes (meeting_id) VALUES ($1)
+         ON CONFLICT (meeting_id) DO NOTHING`,
+        [id],
+      );
+      const vote = await client.query<{ id: number }>(
+        `SELECT id FROM votes WHERE meeting_id = $1`,
+        [id],
+      );
+      await client.query(`DELETE FROM vote_questions WHERE vote_id = $1`, [vote.rows[0].id]);
+      if (input.questions.length > 0) {
+        await insertQuestions(client, vote.rows[0].id, input.questions);
+      }
+    } else {
+      await client.query(`DELETE FROM votes WHERE meeting_id = $1`, [id]);
     }
 
     await client.query("COMMIT");
@@ -340,12 +375,12 @@ export async function setCheckIn(meetingId: number, email: string): Promise<"ok"
   return invited ? "already" : "not-invited";
 }
 
-export async function submitBallot(voteId: number, voterEmail: string, answer: boolean): Promise<"ok" | "duplicate"> {
+export async function submitBallot(questionId: number, voterEmail: string, answer: boolean): Promise<"ok" | "duplicate"> {
   const { rowCount } = await query(
-    `INSERT INTO ballots (vote_id, voter_email, answer)
+    `INSERT INTO ballots (question_id, voter_email, answer)
      VALUES ($1, $2, $3)
-     ON CONFLICT (vote_id, voter_email) DO NOTHING`,
-    [voteId, voterEmail, answer],
+     ON CONFLICT (question_id, voter_email) DO NOTHING`,
+    [questionId, voterEmail, answer],
   );
   return rowCount > 0 ? "ok" : "duplicate";
 }
