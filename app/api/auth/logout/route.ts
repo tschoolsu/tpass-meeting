@@ -16,10 +16,11 @@ export async function POST() {
 
   const html = `<!doctype html>
 <html lang="zh-Hant"><head><meta charset="utf-8"><title>登出中…</title></head>
-<body onload="document.forms[0].submit()">
+<body>
 <form method="post" action="${escapeHtml(authLogout)}">
 <noscript><button type="submit">完成登出</button></noscript>
 </form>
+<script>document.forms[0].submit()</script>
 </body></html>`;
 
   const response = new NextResponse(html, {
