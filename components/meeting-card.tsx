@@ -1,0 +1,36 @@
+import Link from "next/link";
+import type { MeetingListItem } from "@/lib/meetings";
+import { Tag } from "@/components/ui";
+
+export function formatDate(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${y} 年 ${m} 月 ${d} 日`;
+}
+
+export function MeetingCard({ meeting }: { meeting: MeetingListItem }) {
+  return (
+    <Link
+      href={`/read?id=${meeting.id}`}
+      className="group flex flex-col items-start gap-3 rounded-2xl border-2 border-foreground bg-card p-5 text-left shadow-[4px_4px_0_0_var(--color-foreground)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[7px_7px_0_0_var(--color-foreground)] active:translate-y-0 active:shadow-[3px_3px_0_0_var(--color-foreground)]"
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        {meeting.department ? <Tag className="bg-tone-badge">{meeting.department}</Tag> : null}
+        <span className="font-mono text-xs font-bold text-muted-foreground">
+          {formatDate(meeting.meeting_date)}
+        </span>
+      </div>
+
+      <h2 className="text-lg font-extrabold leading-snug">
+        {meeting.department ? <span className="text-tone-text">[{meeting.department}] </span> : null}
+        {meeting.title}
+      </h2>
+
+      <div className="mt-auto flex w-full flex-wrap items-center justify-between gap-2 pt-2 text-xs font-medium text-muted-foreground">
+        <span>建立者：{meeting.owner_name}</span>
+        <span className="font-mono font-bold">
+          {meeting.checked_count}/{meeting.participant_count} 已簽到
+        </span>
+      </div>
+    </Link>
+  );
+}
