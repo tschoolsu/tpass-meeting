@@ -1,7 +1,8 @@
 import type { MeetingInput } from "@/lib/meetings";
+import { parseTaipeiLocal } from "@/lib/time";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const DATETIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 const MAX_PARTICIPANTS = 500;
 const MAX_QUESTIONS = 50;
 
@@ -40,14 +41,11 @@ function parseQuestions(raw: string): string[] {
   return questions;
 }
 
-function parseDate(raw: string): string {
+function parseStartsAt(raw: string): string {
   const value = raw.trim();
-  if (!DATE_RE.test(value)) throw new ValidationError("日期格式不正確");
-  const [y, m, d] = value.split("-").map(Number);
-  const date = new Date(Date.UTC(y, m - 1, d));
-  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) {
-    throw new ValidationError("日期格式不正確");
-  }
+  if (!DATETIME_RE.test(value)) throw new ValidationError("會議開始時間格式不正確");
+  const date = parseTaipeiLocal(value);
+  if (Number.isNaN(date.getTime())) throw new ValidationError("會議開始時間格式不正確");
   return value;
 }
 
@@ -62,7 +60,7 @@ export function parseMeeting(formData: FormData): MeetingInput {
   return {
     title: parseTitle(String(formData.get("title") ?? "")),
     department: String(formData.get("department") ?? "").trim(),
-    meetingDate: parseDate(String(formData.get("meeting_date") ?? "")),
+    startsAt: parseStartsAt(String(formData.get("starts_at") ?? "")),
     participantEmails: parseParticipants(String(formData.get("participants") ?? "")),
     votingEnabled,
     questions: votingEnabled ? parseQuestions(String(formData.get("questions") ?? "")) : [],

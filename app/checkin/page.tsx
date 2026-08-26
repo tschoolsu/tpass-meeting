@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requireAccess } from "@/lib/auth";
 import { getCheckInState, getMeeting, isParticipant } from "@/lib/meetings";
 import { CheckinButton } from "@/components/checkin-button";
-import { formatDate } from "@/components/meeting-card";
+import { formatTaipei } from "@/lib/time";
 import { Card, Tag } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -60,7 +60,7 @@ export default async function CheckinPage({
         <div className="mb-6 flex flex-wrap items-center justify-center gap-2">
           {meeting.department ? <Tag className="bg-tone-badge">{meeting.department}</Tag> : null}
           <span className="font-mono text-xs font-bold text-muted-foreground">
-            {formatDate(meeting.meeting_date)}
+            {formatTaipei(meeting.starts_at)}
           </span>
         </div>
         <h2 className="px-4 text-lg font-extrabold leading-snug">{meeting.title}</h2>

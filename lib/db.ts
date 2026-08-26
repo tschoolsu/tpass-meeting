@@ -30,12 +30,14 @@ export async function initDb(): Promise<void> {
       title         TEXT NOT NULL CHECK (char_length(title) BETWEEN 1 AND 200),
       department    TEXT NOT NULL DEFAULT '',
       meeting_date  DATE NOT NULL,
+      starts_at     TIMESTAMPTZ NOT NULL,
       owner_sub     TEXT NOT NULL,
       owner_email   TEXT NOT NULL,
       owner_name    TEXT NOT NULL,
       voting_enabled BOOLEAN NOT NULL DEFAULT FALSE,
       created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    ALTER TABLE meetings ADD COLUMN IF NOT EXISTS starts_at TIMESTAMPTZ;
     CREATE INDEX IF NOT EXISTS idx_meetings_date ON meetings (meeting_date DESC, id DESC);
 
     CREATE TABLE IF NOT EXISTS participants (

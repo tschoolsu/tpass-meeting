@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { isAdmin, requireManager } from "@/lib/auth";
 import { getMeetingDetail } from "@/lib/meetings";
+import { toDatetimeLocal } from "@/lib/time";
 import { MeetingForm } from "@/components/meeting-form";
 import { BtnLink, PageHeader } from "@/components/ui";
 
@@ -40,7 +41,7 @@ export default async function CreatePage({
     initial = {
       title: detail.meeting.title,
       department: detail.meeting.department,
-      meetingDate: detail.meeting.meeting_date,
+      startsAt: toDatetimeLocal(new Date(detail.meeting.starts_at)),
       participants: detail.participants.map((p) => p.email).join("\n"),
       votingEnabled: detail.meeting.voting_enabled,
       questions: detail.vote ? detail.vote.questions.map((v) => v.question).join("\n") : "",

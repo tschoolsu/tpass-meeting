@@ -17,7 +17,7 @@ export function MeetingForm({
   initial?: {
     title: string;
     department: string;
-    meetingDate: string;
+    startsAt: string;
     participants: string;
     votingEnabled: boolean;
     questions: string;
@@ -50,13 +50,13 @@ export function MeetingForm({
             defaultValue={initial?.title}
           />
         </Field>
-        <Field label="會議日期" htmlFor="meeting_date">
+        <Field label="會議開始時間" htmlFor="starts_at" hint="UTC+8">
           <Input
-            id="meeting_date"
-            name="meeting_date"
-            type="date"
+            id="starts_at"
+            name="starts_at"
+            type="datetime-local"
             required
-            defaultValue={initial?.meetingDate}
+            defaultValue={initial?.startsAt}
           />
         </Field>
       </div>

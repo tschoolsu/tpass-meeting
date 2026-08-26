@@ -1,11 +1,7 @@
 import Link from "next/link";
 import type { MeetingListItem } from "@/lib/meetings";
+import { formatTaipei } from "@/lib/time";
 import { Tag } from "@/components/ui";
-
-export function formatDate(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return `${y} 年 ${m} 月 ${d} 日`;
-}
 
 export function MeetingCard({ meeting }: { meeting: MeetingListItem }) {
   return (
@@ -16,7 +12,7 @@ export function MeetingCard({ meeting }: { meeting: MeetingListItem }) {
       <div className="flex flex-wrap items-center gap-2">
         {meeting.department ? <Tag className="bg-tone-badge">{meeting.department}</Tag> : null}
         <span className="font-mono text-xs font-bold text-muted-foreground">
-          {formatDate(meeting.meeting_date)}
+          {formatTaipei(meeting.starts_at)}
         </span>
       </div>
 

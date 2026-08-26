@@ -8,6 +8,7 @@ import {
   requireAccess,
   requireManager,
 } from "@/lib/auth";
+import { isStarted } from "@/lib/time";
 import {
   addNote,
   createMeeting,
@@ -96,6 +97,9 @@ export async function voteAction(
   const session = await requireAccess();
   const flow = await getVoteFlow(voteId, session.email);
   if (!flow) return { error: "找不到這份表決" };
+  if (!isStarted(flow.meeting.starts_at)) {
+    return { error: "會議尚未開始，開始後才能表決" };
+  }
   if (!(await isParticipant(flow.meeting.id, session.email))) {
     return { error: "你未被邀請參與這場會議的表決" };
   }

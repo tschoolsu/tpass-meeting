@@ -6,7 +6,7 @@ import {
   getMeetingDetail,
   getMyAnsweredQuestionIds,
 } from "@/lib/meetings";
-import { formatDate } from "@/components/meeting-card";
+import { formatTaipei, isStarted } from "@/lib/time";
 import { PieChart } from "@/components/pie-chart";
 import { NoteBar } from "@/components/note-bar";
 import { DeleteMeetingButton } from "@/components/delete-meeting";
@@ -43,6 +43,7 @@ export default async function ReadPage({
   const myCheckin = participants.find((p) => p.email === session.email)?.checked_in ?? false;
   const notCheckedIn = participants.filter((p) => !p.checked_in);
   const checkedCount = participants.length - notCheckedIn.length;
+  const started = isStarted(meeting.starts_at);
 
   const [unanswered, myAnswered] = meeting.voting_enabled && canVote && vote
     ? await Promise.all([
@@ -66,7 +67,7 @@ export default async function ReadPage({
             <div className="flex flex-wrap items-center gap-2">
               {meeting.department ? <Tag className="bg-tone-badge">{meeting.department}</Tag> : null}
               <span className="font-mono text-xs font-bold text-muted-foreground">
-                {formatDate(meeting.meeting_date)}
+                {formatTaipei(meeting.starts_at)}（UTC+8）
               </span>
             </div>
             <h1 className="mt-2 text-2xl font-extrabold leading-snug tracking-tight sm:text-3xl">
@@ -114,7 +115,11 @@ export default async function ReadPage({
             <Tag className="bg-tone-badge">你已完成簽到</Tag>
           ) : null}
 
-          {meeting.voting_enabled && canVote && vote && unanswered > 0 ? (
+          {meeting.voting_enabled && canVote && vote && !started ? (
+            <Tag className="bg-accent/10">
+              表決於 {formatTaipei(meeting.starts_at)}（UTC+8）開始後開放
+            </Tag>
+          ) : meeting.voting_enabled && canVote && vote && unanswered > 0 ? (
             <BtnLink href={`/vote?id=${vote.id}`} variant="primary">
               前往表決（尚有 {unanswered} 題）
             </BtnLink>
@@ -135,17 +140,23 @@ export default async function ReadPage({
       {meeting.voting_enabled && vote ? (
         <section className="mt-8">
           <h2 className="mb-3 text-lg font-extrabold">表決結果</h2>
-          <div className="flex flex-col gap-4">
-            {vote.questions.map((v) => (
-              <PieChart
-                key={v.id}
-                title={v.question}
-                yes={v.yes}
-                no={v.no}
-                answeredByMe={myAnswered.has(v.id)}
-              />
-            ))}
-          </div>
+          {started ? (
+            <div className="flex flex-col gap-4">
+              {vote.questions.map((v) => (
+                <PieChart
+                  key={v.id}
+                  title={v.question}
+                  yes={v.yes}
+                  no={v.no}
+                  answeredByMe={myAnswered.has(v.id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-xl border-2 border-foreground bg-secondary px-4 py-3 text-sm font-medium text-muted-foreground">
+              表決將於 {formatTaipei(meeting.starts_at)}（UTC+8）開始後開放。
+            </p>
+          )}
         </section>
       ) : null}
 

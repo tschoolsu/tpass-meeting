@@ -1,11 +1,13 @@
 import "server-only";
 import { pool, query } from "@/lib/db";
+import { parseTaipeiLocal } from "@/lib/time";
 
 export interface Meeting {
   id: number;
   title: string;
   department: string;
   meeting_date: string;
+  starts_at: string;
   owner_sub: string;
   owner_email: string;
   owner_name: string;
@@ -69,7 +71,7 @@ export interface VoteFlow {
 }
 
 const meetingCols =
-  "m.id, m.title, m.department, m.meeting_date::text AS meeting_date, m.owner_sub, m.owner_email, m.owner_name, m.voting_enabled, m.created_at";
+  "m.id, m.title, m.department, m.meeting_date::text AS meeting_date, m.starts_at, m.owner_sub, m.owner_email, m.owner_name, m.voting_enabled, m.created_at";
 
 export async function listMeetings(): Promise<MeetingListItem[]> {
   const { rows } = await query<MeetingListItem>(`
@@ -228,10 +230,17 @@ export async function getVoteFlow(voteId: number, email: string): Promise<VoteFl
 export interface MeetingInput {
   title: string;
   department: string;
-  meetingDate: string;
+  startsAt: string; // datetime-local 值（Asia/Taipei）："YYYY-MM-DDTHH:MM"
   participantEmails: string[];
   votingEnabled: boolean;
   questions: string[];
+}
+
+// 由 UTC+8 的開始時間推出生日曆日期，並轉成 timestamptz 的 ISO 字串。
+function splitStartsAt(startsAt: string): { meetingDate: string; startsAtIso: string } {
+  const meetingDate = startsAt.slice(0, 10);
+  const startsAtIso = parseTaipeiLocal(startsAt).toISOString();
+  return { meetingDate, startsAtIso };
 }
 
 async function insertQuestions(
@@ -254,13 +263,14 @@ async function insertQuestions(
 }
 
 export async function createMeeting(input: MeetingInput, owner: { sub: string; email: string; name: string }): Promise<number> {
+  const { meetingDate, startsAtIso } = splitStartsAt(input.startsAt);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
     const meeting = await client.query<{ id: number }>(
-      `INSERT INTO meetings (title, department, meeting_date, owner_sub, owner_email, owner_name, voting_enabled)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-      [input.title, input.department, input.meetingDate, owner.sub, owner.email, owner.name, input.votingEnabled],
+      `INSERT INTO meetings (title, department, meeting_date, starts_at, owner_sub, owner_email, owner_name, voting_enabled)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+      [input.title, input.department, meetingDate, startsAtIso, owner.sub, owner.email, owner.name, input.votingEnabled],
     );
     const meetingId = meeting.rows[0].id;
 
@@ -299,15 +309,16 @@ export async function updateMeeting(id: number, input: MeetingInput, ownerSub: s
   if (!meeting) return false;
   if (!isAdmin && meeting.owner_sub !== ownerSub) return false;
 
+  const { meetingDate, startsAtIso } = splitStartsAt(input.startsAt);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
     await client.query(
       `UPDATE meetings
-          SET title = $1, department = $2, meeting_date = $3, voting_enabled = $4
-        WHERE id = $5`,
-      [input.title, input.department, input.meetingDate, input.votingEnabled, id],
+          SET title = $1, department = $2, meeting_date = $3, starts_at = $4, voting_enabled = $5
+        WHERE id = $6`,
+      [input.title, input.department, meetingDate, startsAtIso, input.votingEnabled, id],
     );
 
     // 參與人重設：保留已簽到紀錄，新增未簽到的人，移除被刪除的人。
