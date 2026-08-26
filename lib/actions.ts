@@ -184,13 +184,16 @@ export async function uploadBgmAction(
 export async function createApiKeyAction(
   _prev: FormState,
   formData: FormData,
-): Promise<FormState & { key?: string }> {
+): Promise<FormState & { key?: string; created?: { id: number; label: string; created_at: string } }> {
   await requireAdmin();
   const label = String(formData.get("label") ?? "").trim();
   if (!label || label.length > 100) return { error: "請輸入金鑰名稱（100 字內）" };
-  const key = await createApiKey(label);
+  const { plaintext, id } = await createApiKey(label);
   revalidatePath("/panel");
-  return { key };
+  return {
+    key: plaintext,
+    created: { id, label, created_at: new Date().toISOString() },
+  };
 }
 
 export async function revokeApiKeyAction(id: number): Promise<FormState> {

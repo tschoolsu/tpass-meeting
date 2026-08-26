@@ -20,3 +20,13 @@ export async function saveBgm(buffer: Buffer): Promise<void> {
   await mkdir(path.dirname(bgmPath()), { recursive: true });
   await writeFile(bgmPath(), buffer);
 }
+
+export async function bgmInfo(): Promise<{ size: number; updated_at: string } | null> {
+  try {
+    const s = await stat(bgmPath());
+    if (!s.isFile()) return null;
+    return { size: s.size, updated_at: s.mtime.toISOString() };
+  } catch {
+    return null;
+  }
+}

@@ -94,6 +94,13 @@ export async function getMeeting(id: number): Promise<Meeting | null> {
   return rows[0] ?? null;
 }
 
+export async function countMeetings(): Promise<number> {
+  const { rows } = await query<{ count: number }>(
+    `SELECT COUNT(*)::int AS count FROM meetings`,
+  );
+  return rows[0]?.count ?? 0;
+}
+
 export async function getMeetingDetail(id: number): Promise<MeetingDetail | null> {
   const meeting = await getMeeting(id);
   if (!meeting) return null;

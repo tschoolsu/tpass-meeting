@@ -19,13 +19,13 @@ export function generateApiKey(): string {
 }
 
 // 建立後只回傳一次明碼，資料庫只存雜湊。
-export async function createApiKey(label: string): Promise<string> {
+export async function createApiKey(label: string): Promise<{ plaintext: string; id: number }> {
   const plaintext = generateApiKey();
-  await query(`INSERT INTO api_keys (label, key_hash) VALUES ($1, $2)`, [
-    label,
-    hashKey(plaintext),
-  ]);
-  return plaintext;
+  const { rows } = await query<{ id: number }>(
+    `INSERT INTO api_keys (label, key_hash) VALUES ($1, $2) RETURNING id`,
+    [label, hashKey(plaintext)],
+  );
+  return { plaintext, id: rows[0].id };
 }
 
 export async function listApiKeys(): Promise<ApiKeyRow[]> {
