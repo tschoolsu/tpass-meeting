@@ -112,10 +112,14 @@ export default async function ReadPage({
         </div>
 
         <div className="mt-6 flex flex-wrap items-center gap-2">
-          {isMeParticipant && !myCheckin ? (
+          {isMeParticipant && !myCheckin && started ? (
             <BtnLink href={`/checkin?id=${id}`} variant="primary">
               前往簽到
             </BtnLink>
+          ) : isMeParticipant && !myCheckin ? (
+            <Tag className="bg-accent/10">
+              簽到於 {formatTaipei(meeting.starts_at)}（UTC+8）開始後開放
+            </Tag>
           ) : myCheckin ? (
             <Tag className="bg-tone-badge">你已完成簽到</Tag>
           ) : null}

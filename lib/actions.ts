@@ -17,6 +17,7 @@ import {
   addNote,
   createMeeting,
   deleteMeeting,
+  getMeeting,
   getMeetingDetail,
   getVoteFlow,
   isParticipant,
@@ -84,6 +85,9 @@ export async function deleteMeetingAction(id: number): Promise<FormState> {
 
 export async function checkInAction(meetingId: number): Promise<FormState & { done?: boolean }> {
   const session = await requireAccess();
+  const meeting = await getMeeting(meetingId);
+  if (!meeting) return { error: "找不到會議" };
+  if (!isStarted(meeting.starts_at)) return { error: "會議尚未開始，開始後才能簽到" };
   const invited = await isParticipant(meetingId, session.email);
   if (!invited) return { error: "你未被邀請參與這場會議" };
   const status = await setCheckIn(meetingId, session.email);
