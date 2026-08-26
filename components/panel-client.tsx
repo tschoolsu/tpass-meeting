@@ -267,22 +267,24 @@ function ApiKeysCard({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
           (document.getElementById("apikey-form") as HTMLFormElement | null)?.reset();
         }}
         id="apikey-form"
-        className="flex flex-col gap-3 sm:flex-row sm:items-end"
+        className="flex flex-col gap-3"
       >
-        <div className="flex-1">
+        <div>
           <label htmlFor="apikey-label" className="mb-1.5 block text-sm font-extrabold">
             金鑰名稱
           </label>
-          <Input
-            id="apikey-label"
-            name="label"
-            placeholder="例：自動化腳本、簽到機"
-            className="sm:max-w-sm"
-          />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Input
+              id="apikey-label"
+              name="label"
+              placeholder="例：自動化腳本、簽到機"
+              className="sm:max-w-sm"
+            />
+            <Button type="submit" variant="accent" disabled={pending} className="shrink-0">
+              {pending ? "建立中…" : "建立金鑰"}
+            </Button>
+          </div>
         </div>
-        <Button type="submit" variant="accent" disabled={pending} className="sm:self-auto">
-          {pending ? "建立中…" : "建立金鑰"}
-        </Button>
       </form>
 
       {created ? (
