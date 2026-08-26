@@ -39,13 +39,13 @@ export function MeetingFilter({
           onChange={(e) => setQuery(e.target.value)}
           placeholder="搜尋會議標題、部會或建立者…"
           aria-label="搜尋會議"
-          className="w-full rounded-xl border-2 border-foreground bg-card px-4 py-2.5 text-sm font-medium placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring sm:flex-1"
+          className="w-full rounded-xl border-2 border-foreground bg-card px-4 py-2.5 text-sm font-medium placeholder:text-muted-foreground shadow-[2px_2px_0_0_var(--color-foreground)] focus:outline-none focus:ring-2 focus:ring-ring sm:flex-1"
         />
         <select
           value={department}
           onChange={(e) => setDepartment(e.target.value)}
           aria-label="依部會篩選"
-          className="w-full rounded-xl border-2 border-foreground bg-card px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring sm:w-52"
+          className="w-full rounded-xl border-2 border-foreground bg-card px-3 py-2.5 text-sm font-medium shadow-[2px_2px_0_0_var(--color-foreground)] focus:outline-none focus:ring-2 focus:ring-ring sm:w-52"
         >
           <option value="">全部部會</option>
           {departments.map((d) => (

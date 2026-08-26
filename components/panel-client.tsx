@@ -9,7 +9,7 @@ import {
   uploadBgmAction,
 } from "@/lib/actions";
 import type { ApiKeyRow } from "@/lib/api-keys";
-import { Button, Card, Input } from "@/components/ui";
+import { Button, Card, FileInput, Input } from "@/components/ui";
 
 const init = { error: undefined as string | undefined };
 
@@ -162,7 +162,7 @@ function ImportCard({ meetingCount }: { meetingCount: number }) {
         className="flex flex-col gap-3"
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <Input type="file" name="file" accept="application/json,.json" className="sm:max-w-sm" />
+          <FileInput name="file" accept="application/json,.json" className="sm:max-w-sm" />
           <Button type="submit" variant="destructive" disabled={pending}>
             {pending ? "匯入中…" : "開始匯入"}
           </Button>
@@ -211,7 +211,7 @@ function BgmCard({ hasBgm, bgmSize }: { hasBgm: boolean; bgmSize: number | null 
         }}
         className="flex flex-col gap-3 sm:flex-row sm:items-center"
       >
-        <Input type="file" name="bgm" accept="audio/mpeg,.mp3" className="sm:max-w-sm" />
+        <FileInput name="bgm" accept="audio/mpeg,.mp3" className="sm:max-w-sm" />
         <Button type="submit" variant="primary" disabled={pending}>
           {pending ? "上傳中…" : hasBgm ? "更換音樂" : "上傳音樂"}
         </Button>

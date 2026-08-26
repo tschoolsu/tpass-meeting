@@ -66,7 +66,7 @@ export function MeetingForm({
           id="department"
           name="department"
           defaultValue={initial?.department ?? ""}
-          className="w-full rounded-xl border-2 border-foreground bg-card px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring"
+          className="w-full rounded-xl border-2 border-foreground bg-card px-3 py-2 text-sm font-medium shadow-[2px_2px_0_0_var(--color-foreground)] focus:outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="">無</option>
           {allDepartments.map((d) => (

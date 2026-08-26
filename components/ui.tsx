@@ -79,14 +79,26 @@ export function Field({ label, htmlFor, hint, children }: { label: string; htmlF
 
 export const inputCls =
   "w-full rounded-xl border-2 border-foreground bg-card px-3 py-2 text-sm font-medium " +
-  "placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring";
+  "placeholder:text-muted-foreground shadow-[2px_2px_0_0_var(--color-foreground)] " +
+  "focus:outline-none focus:ring-2 focus:ring-ring focus:shadow-[3px_3px_0_0_var(--color-foreground)]";
 
-export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={inputCls} {...props} />;
+export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
+  return <input className={`${inputCls} ${className}`} {...props} />;
 }
 
-export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className={`${inputCls} min-h-24 resize-y`} {...props} />;
+export function Textarea({ className = "", ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea className={`${inputCls} min-h-24 resize-y ${className}`} {...props} />;
+}
+
+// 檔案輸入：把瀏覽器預設的「選擇檔案」鈕也加上 border + shadow，看起來才找得到。
+export function FileInput({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input
+      type="file"
+      className={`${inputCls} cursor-pointer file:mr-3 file:cursor-pointer file:rounded-lg file:border-2 file:border-foreground file:bg-secondary file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-foreground file:shadow-[2px_2px_0_0_var(--color-foreground)] file:transition-colors file:hover:bg-muted ${className}`}
+      {...props}
+    />
+  );
 }
 
 export function PageHeader({ title, desc, right }: { title: ReactNode; desc?: ReactNode; right?: ReactNode }) {
