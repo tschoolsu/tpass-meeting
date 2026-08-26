@@ -90,13 +90,15 @@ export function loginUrlFor(returnPath = "/"): string {
   return u.toString();
 }
 
-// 頁面守門：未登入 → auth；default / ban / read=false → portal 或 denied。
+// 頁面守門：未登入 → auth；ban / default（非 warning）→ portal；read=false → denied。
+// warning 使用者（即使 role 是 default）仍可瀏覽，只會多跳出警告彈窗。
 export async function requireAccess(returnPath = "/"): Promise<TPassClaims> {
   const session = await getSession();
   if (!session) redirect(loginUrlFor(returnPath));
   const perm = getPermissionEntry(session);
+  if (perm.restriction === "ban") redirect(portalUrl());
+  if (perm.role === "default" && perm.restriction !== "warning") redirect(portalUrl());
   if (!perm.read) redirect(`${process.env.AUTH_DENIED_URL || "https://auth.tschoolsu.org/denied"}?service=${serviceId()}`);
-  if (perm.role === "default" || perm.restriction === "ban") redirect(portalUrl());
   return session;
 }
 

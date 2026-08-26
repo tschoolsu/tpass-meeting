@@ -29,7 +29,7 @@ export default async function HomePage() {
           ) : undefined
         }
       />
-      <MeetingFilter meetings={meetings} departments={departments()} />
+      <MeetingFilter meetings={meetings} departments={departments()} canCreate={isModerator(session)} />
     </div>
   );
 }

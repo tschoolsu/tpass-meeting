@@ -61,11 +61,11 @@ export interface VoteFlow {
 }
 
 const meetingCols =
-  "id, title, department, meeting_date, owner_sub, owner_email, owner_name, voting_enabled, created_at";
+  "m.id, m.title, m.department, m.meeting_date::text AS meeting_date, m.owner_sub, m.owner_email, m.owner_name, m.voting_enabled, m.created_at";
 
 export async function listMeetings(): Promise<MeetingListItem[]> {
   const { rows } = await query<MeetingListItem>(`
-    SELECT m.${meetingCols},
+    SELECT ${meetingCols},
            COUNT(DISTINCT p.id)::int AS participant_count,
            COUNT(DISTINCT p.id) FILTER (WHERE p.checked_in)::int AS checked_count
     FROM meetings m
@@ -78,7 +78,7 @@ export async function listMeetings(): Promise<MeetingListItem[]> {
 
 export async function getMeeting(id: number): Promise<Meeting | null> {
   const { rows } = await query<Meeting>(
-    `SELECT ${meetingCols} FROM meetings WHERE id = $1`,
+    `SELECT ${meetingCols} FROM meetings m WHERE m.id = $1`,
     [id],
   );
   return rows[0] ?? null;

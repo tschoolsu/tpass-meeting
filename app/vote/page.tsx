@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { isAdmin, requireAccess } from "@/lib/auth";
+import { requireAccess } from "@/lib/auth";
 import { getVoteFlow, isParticipant } from "@/lib/meetings";
 import { VoteFlow } from "@/components/vote-flow";
 import { Card } from "@/components/ui";
@@ -23,7 +23,7 @@ export default async function VotePage({
   const flow = await getVoteFlow(id, session.email);
   if (!flow) notFound();
 
-  if (!isAdmin(session) && !(await isParticipant(flow.meeting.id, session.email))) {
+  if (!(await isParticipant(flow.meeting.id, session.email))) {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center">
         <Card className="w-full text-center shadow-[6px_6px_0_0_var(--color-foreground)]">

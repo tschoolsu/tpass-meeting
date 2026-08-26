@@ -6,7 +6,6 @@ import {
   getFirstUnansweredVote,
   getMeetingDetail,
   getMyVotedVoteIds,
-  isParticipant,
 } from "@/lib/meetings";
 import { formatDate } from "@/components/meeting-card";
 import { PieChart } from "@/components/pie-chart";
@@ -35,7 +34,8 @@ export default async function ReadPage({
   const { meeting, participants, votes, notes } = detail;
   const isAdminUser = isAdmin(session);
   const canEdit = isAdminUser || meeting.owner_sub === session.sub;
-  const canVote = isAdminUser || (await isParticipant(id, session.email));
+  const isMeParticipant = participants.some((p) => p.email === session.email);
+  const canVote = isMeParticipant;
 
   const myCheckin = participants.find((p) => p.email === session.email)?.checked_in ?? false;
   const notCheckedIn = participants.filter((p) => !p.checked_in);
@@ -104,7 +104,7 @@ export default async function ReadPage({
         </div>
 
         <div className="mt-6 flex flex-wrap items-center gap-2">
-          {canVote && !myCheckin ? (
+          {isMeParticipant && !myCheckin ? (
             <BtnLink href={`/checkin?id=${id}`} variant="primary">
               前往簽到
             </BtnLink>
@@ -208,7 +208,7 @@ export default async function ReadPage({
         </div>
 
         <div className="mt-5">
-          <NoteBar meetingId={id} canNote={isAdminUser || isModerator(session) || (await isParticipant(id, session.email))} />
+          <NoteBar meetingId={id} canNote={isAdminUser || isModerator(session) || isMeParticipant} />
         </div>
       </section>
     </div>

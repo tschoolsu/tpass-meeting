@@ -8,9 +8,11 @@ import { EmptyState } from "@/components/ui";
 export function MeetingFilter({
   meetings,
   departments,
+  canCreate,
 }: {
   meetings: MeetingListItem[];
   departments: string[];
+  canCreate: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [department, setDepartment] = useState("");
@@ -60,7 +62,9 @@ export function MeetingFilter({
           desc={
             query || department
               ? "試試調整搜尋關鍵字或部會篩選條件。"
-              : "點選右上方的「創建會議記錄」來建立第一份會議。"
+              : canCreate
+                ? "點選右上方的「創建會議記錄」來建立第一份會議。"
+                : "尚無會議記錄，請等待建立者新增。"
           }
         />
       ) : (

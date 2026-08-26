@@ -79,10 +79,8 @@ export async function deleteMeetingAction(id: number): Promise<FormState> {
 
 export async function checkInAction(meetingId: number): Promise<FormState & { done?: boolean }> {
   const session = await requireAccess();
-  if (!isAdmin(session)) {
-    const invited = await isParticipant(meetingId, session.email);
-    if (!invited) return { error: "你未被邀請參與這場會議" };
-  }
+  const invited = await isParticipant(meetingId, session.email);
+  if (!invited) return { error: "你未被邀請參與這場會議" };
   const status = await setCheckIn(meetingId, session.email);
   revalidatePath(`/read?id=${meetingId}`);
   revalidatePath(`/checkin?id=${meetingId}`);
@@ -97,7 +95,7 @@ export async function voteAction(
   const session = await requireAccess();
   const flow = await getVoteFlow(voteId, session.email);
   if (!flow) return { error: "找不到這份表決" };
-  if (!isAdmin(session) && !(await isParticipant(flow.meeting.id, session.email))) {
+  if (!(await isParticipant(flow.meeting.id, session.email))) {
     return { error: "你未被邀請參與這場會議的表決" };
   }
   if (flow.alreadyVoted) return { error: "你已經完成這題的表決，無法更改" };

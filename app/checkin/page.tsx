@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { isAdmin, requireAccess } from "@/lib/auth";
+import { requireAccess } from "@/lib/auth";
 import { getMeeting, getMeetingDetail, isParticipant } from "@/lib/meetings";
 import { CheckinButton } from "@/components/checkin-button";
 import { formatDate } from "@/components/meeting-card";
@@ -25,7 +25,7 @@ export default async function CheckinPage({
   if (!meeting) notFound();
 
   const invited = await isParticipant(id, session.email);
-  if (!invited && !isAdmin(session)) {
+  if (!invited) {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center">
         <Card className="w-full text-center shadow-[6px_6px_0_0_var(--color-foreground)]">
