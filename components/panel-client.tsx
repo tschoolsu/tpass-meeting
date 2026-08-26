@@ -4,8 +4,8 @@ import { useActionState, useState, useTransition } from "react";
 import type { ReactNode } from "react";
 import {
   createApiKeyAction,
+  deleteApiKeyAction,
   importMeetingsAction,
-  revokeApiKeyAction,
   uploadBgmAction,
 } from "@/lib/actions";
 import type { ApiKeyRow } from "@/lib/api-keys";
@@ -239,7 +239,7 @@ function ApiKeysCard({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
       if (res.error) {
         setError(res.error);
       } else if (res.key && res.created) {
-        const row: ApiKeyRow = { ...res.created, last_used_at: null, revoked: false };
+        const row: ApiKeyRow = { ...res.created, last_used_at: null };
         setCreated({ key: res.key, row });
         setKeys((prev) => [row, ...prev]);
         setError(null);
@@ -247,10 +247,10 @@ function ApiKeysCard({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
     });
   }
 
-  async function revoke(id: number) {
-    if (!window.confirm("確定要撤銷這把 API key 嗎？撤銷後立即失效，無法復原。")) return;
+  async function remove(id: number) {
+    if (!window.confirm("確定要刪除這把 API key 嗎？刪除後立即失效，無法復原。")) return;
     startTransition(async () => {
-      await revokeApiKeyAction(id);
+      await deleteApiKeyAction(id);
       setKeys((prev) => prev.filter((k) => k.id !== id));
     });
   }
@@ -310,26 +310,18 @@ function ApiKeysCard({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-extrabold">{k.label}</span>
-                {k.revoked ? (
-                  <span className="rounded-md border-2 border-foreground bg-destructive/10 px-2 py-0.5 font-mono text-[10px] font-bold text-destructive">
-                    已撤銷
-                  </span>
-                ) : (
-                  <span className="rounded-md border-2 border-foreground bg-tone-badge px-2 py-0.5 font-mono text-[10px] font-bold">
-                    啟用中
-                  </span>
-                )}
+                <span className="rounded-md border-2 border-foreground bg-tone-badge px-2 py-0.5 font-mono text-[10px] font-bold">
+                  啟用中
+                </span>
               </div>
               <div className="mt-0.5 font-mono text-[11px] font-bold text-muted-foreground">
                 建立於 {formatTime(k.created_at)}
                 {k.last_used_at ? ` · 上次使用 ${formatTime(k.last_used_at)}` : " · 尚未使用"}
               </div>
             </div>
-            {!k.revoked ? (
-              <Button variant="destructive" onClick={() => revoke(k.id)} disabled={pending} className="px-3 py-1.5 text-xs">
-                撤銷
-              </Button>
-            ) : null}
+            <Button variant="destructive" onClick={() => remove(k.id)} disabled={pending} className="px-3 py-1.5 text-xs">
+              刪除
+            </Button>
           </li>
         ))}
         {keys.length === 0 ? (

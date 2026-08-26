@@ -10,7 +10,7 @@ import {
   requireManager,
 } from "@/lib/auth";
 import { isStarted } from "@/lib/time";
-import { createApiKey, revokeApiKey } from "@/lib/api-keys";
+import { createApiKey, deleteApiKey } from "@/lib/api-keys";
 import { importAll } from "@/lib/backup";
 import { saveBgm, MAX_BGM_BYTES } from "@/lib/bgm";
 import {
@@ -196,9 +196,9 @@ export async function createApiKeyAction(
   };
 }
 
-export async function revokeApiKeyAction(id: number): Promise<FormState> {
+export async function deleteApiKeyAction(id: number): Promise<FormState> {
   await requireAdmin();
-  await revokeApiKey(id);
+  await deleteApiKey(id);
   revalidatePath("/panel");
   return {};
 }

@@ -7,7 +7,6 @@ export interface ApiKeyRow {
   label: string;
   created_at: string;
   last_used_at: string | null;
-  revoked: boolean;
 }
 
 export function hashKey(key: string): string {
@@ -30,15 +29,16 @@ export async function createApiKey(label: string): Promise<{ plaintext: string; 
 
 export async function listApiKeys(): Promise<ApiKeyRow[]> {
   const { rows } = await query<ApiKeyRow>(
-    `SELECT id, label, created_at, last_used_at, revoked
+    `SELECT id, label, created_at, last_used_at
        FROM api_keys
       ORDER BY created_at DESC`,
   );
   return rows;
 }
 
-export async function revokeApiKey(id: number): Promise<void> {
-  await query(`UPDATE api_keys SET revoked = TRUE WHERE id = $1`, [id]);
+// 直接刪除金鑰（不再保留已撤銷紀錄）。
+export async function deleteApiKey(id: number): Promise<void> {
+  await query(`DELETE FROM api_keys WHERE id = $1`, [id]);
 }
 
 // 驗證並更新 last_used_at；回傳該金鑰身分供建立者標記。
@@ -46,7 +46,7 @@ export async function authenticateApiKey(key: string): Promise<{ id: number; lab
   const { rows } = await query<{ id: number; label: string }>(
     `UPDATE api_keys
         SET last_used_at = now()
-      WHERE key_hash = $1 AND NOT revoked
+      WHERE key_hash = $1
       RETURNING id, label`,
     [hashKey(key)],
   );

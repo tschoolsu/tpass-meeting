@@ -90,8 +90,7 @@ export async function initDb(): Promise<void> {
       label        TEXT NOT NULL,
       key_hash     TEXT NOT NULL UNIQUE,
       created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-      last_used_at TIMESTAMPTZ,
-      revoked      BOOLEAN NOT NULL DEFAULT FALSE
+      last_used_at TIMESTAMPTZ
     );
   `);
 }
