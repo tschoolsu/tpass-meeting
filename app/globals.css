@@ -1,26 +1,106 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: oklch(0.99 0.002 250);
+  --foreground: oklch(0.21 0.01 264);
+  --card: oklch(1 0 0);
+  --primary: oklch(0.62 0.16 150);
+  --primary-foreground: oklch(0.99 0.002 250);
+  --accent: oklch(0.6 0.16 250);
+  --secondary: oklch(0.96 0.005 250);
+  --muted: oklch(0.96 0.004 250);
+  --muted-foreground: oklch(0.5 0.012 264);
+  --destructive: oklch(0.58 0.2 25);
+  --border: oklch(0.21 0.01 264);
+  --input: oklch(0.85 0.008 264);
+  --ring: oklch(0.62 0.16 150);
+  --radius: 1rem;
+  --font-sans: "Plus Jakarta Sans", "Geist Sans", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+
+  /* Service tone：green（會議本體） */
+  --tone-bg: oklch(0.96 0.05 150);
+  --tone-badge: oklch(0.88 0.11 150);
+  --tone-text: oklch(0.45 0.13 150);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-secondary: var(--secondary);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-tone-bg: var(--tone-bg);
+  --color-tone-badge: var(--tone-badge);
+  --color-tone-text: var(--tone-text);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: light; /* 嚴格 light-only，無 dark mode */
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  font-weight: 500;
+}
+
+/* 中英文與數字間的自動留白（配合 text.md），保守適用於可讀文字節點 */
+.auto-space {
+  word-break: break-word;
+}
+
+/* 警告彈窗進度條收縮 */
+@keyframes shrink {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
+.animate-shrink {
+  animation: shrink 5s linear forwards;
+}
+
+/* 簽到按鈕的漣漪 + 粒子噴發 */
+@keyframes ripple {
+  from { transform: scale(0.6); opacity: 0.9; }
+  to   { transform: scale(2.4); opacity: 0; }
+}
+.animate-ripple {
+  animation: ripple 0.7s ease-out forwards;
+}
+
+@keyframes pop {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+.animate-pop {
+  animation: pop 0.5s ease-in-out;
+}
+
+@keyframes burst {
+  0%   { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(0.2); opacity: 0; }
+}
+.burst-particle {
+  animation: burst 0.9s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+
+/* 表決完成的小彩帶 */
+@keyframes float-up {
+  from { transform: translate(0, 0) scale(1); opacity: 1; }
+  to   { transform: translate(var(--dx), var(--dy)) scale(0.4); opacity: 0; }
+}
+.float-up {
+  animation: float-up 1.4s ease-out forwards;
 }
