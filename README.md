@@ -14,24 +14,78 @@
 
 ## API（需 API key）
 
-API key 於管理面板建立（只顯示一次，DB 只存 SHA-256 雜湊）。呼叫時帶 `Authorization: Bearer <apikey>` 或 `?apikey=<apikey>`：
+API key 於管理面板建立（只顯示一次，DB 只存 SHA-256 雜湊）。
 
 | Method | Endpoint | 說明 |
 | --- | --- | --- |
-| `POST` | `/api/v1/meetings` | 建立會議（title、starts_at、department、participants、voting_enabled、questions） |
+| `POST` | `/api/v1/meetings` | 建立會議（詳見下方） |
 | `GET` | `/api/v1/meetings/:id` | 會議資訊（含 vote id、題目、參與人、紀錄） |
 | `GET` | `/api/v1/meetings/:id/checkins` | 已簽到／未簽到清單 |
 | `GET` | `/api/v1/votes/:voteId/results` | 表決結果（各題各選項人數與百分比） |
 
-建立會議範例：
+### 身分驗證（兩種方式擇一）
+
+用 `Authorization: Bearer <apikey>` 標頭，或網址帶 `?apikey=<apikey>`：
+
+```bash
+# 標頭方式
+curl https://meeting.tschoolsu.org/api/v1/meetings/1 \
+  -H "Authorization: Bearer tpm_xxxxxxxx"
+# 網址方式
+curl "https://meeting.tschoolsu.org/api/v1/meetings/1?apikey=tpm_xxxxxxxx"
+```
+
+金鑰無效或遺漏時回傳 `401 {"error":"..."}`。
+
+### 建立會議 `POST /api/v1/meetings`
+
+**Request Body（JSON，`Content-Type: application/json`）：**
+
+| 欄位 | 型別 | 必填 | 說明 |
+| --- | --- | --- | --- |
+| `title` | string | ✅ | 會議標題（1–200 字） |
+| `starts_at` | string | ✅ | 會議開始時間，`"YYYY-MM-DDTHH:MM"`，以 **UTC+8** 本地時間填寫（例 `2026-09-10T09:00`） |
+| `department` | string | 否 | 部會 tag（空字串則不顯示） |
+| `participants` | string[] | 否 | 參與人 Email 清單，每筆需為合法信箱 |
+| `voting_enabled` | boolean | 否 | 是否啟用表決（預設 `false`） |
+| `questions` | string[] | 視情況 | 啟用表決時必填，至少一題（1–500 字） |
+
+**範例：**
 
 ```bash
 curl -X POST https://meeting.tschoolsu.org/api/v1/meetings \
-  -H "Authorization: Bearer <apikey>" -H "Content-Type: application/json" \
-  -d '{"title":"部務會議","starts_at":"2026-09-10T09:00","department":"數位部",
-       "participants":["a@tschool.tp.edu.tw"],"voting_enabled":true,
-       "questions":["同意採購新投影機"]}'
+  -H "Authorization: Bearer tpm_xxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "部務會議",
+    "starts_at": "2026-09-10T09:00",
+    "department": "數位部",
+    "participants": ["a@tschool.tp.edu.tw", "b@tschool.tp.edu.tw"],
+    "voting_enabled": true,
+    "questions": ["同意採購新投影機", "同意加購餐點預算"]
+  }'
 ```
+
+**成功回應（HTTP 201）：**
+
+```json
+{
+  "id": 12,
+  "vote_id": 7
+}
+```
+
+- `id`：新建會議的 id，可用於後續 `GET /api/v1/meetings/:id`。
+- `vote_id`：該會議的表決 id；`voting_enabled` 為 `false` 時為 `null`，可用於 `GET /api/v1/votes/:voteId/results`。
+
+**錯誤回應：**
+
+| HTTP | 時機 | 例 |
+| --- | --- | --- |
+| `400` | 缺少欄位、格式不正確、啟用表決卻沒有題目 | `{"error":"標題長度需介於 1 到 200 字"}` |
+| `401` | 金鑰遺漏或無效 | `{"error":"API key 無效"}` |
+
+> 建立的會議從 `starts_at` 自動推導日期；簽到與表決皆須等會議開始（UTC+8）後才開放。
 
 ## 權限（來自 JWT `permissions.meeting`）
 
