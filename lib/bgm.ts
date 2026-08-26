@@ -1,5 +1,5 @@
 import "server-only";
-import { mkdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const BGM_FILE = "bgm.mp3";
@@ -19,6 +19,10 @@ export async function hasBgm(): Promise<boolean> {
 export async function saveBgm(buffer: Buffer): Promise<void> {
   await mkdir(path.dirname(bgmPath()), { recursive: true });
   await writeFile(bgmPath(), buffer);
+}
+
+export async function clearBgm(): Promise<void> {
+  await rm(bgmPath(), { force: true });
 }
 
 export async function bgmInfo(): Promise<{ size: number; updated_at: string } | null> {

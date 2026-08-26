@@ -3,6 +3,7 @@
 import { useActionState, useState, useTransition } from "react";
 import type { ReactNode } from "react";
 import {
+  clearBgmAction,
   createApiKeyAction,
   deleteApiKeyAction,
   importMeetingsAction,
@@ -186,6 +187,16 @@ function formatBytes(n: number): string {
 
 function BgmCard({ hasBgm, bgmSize }: { hasBgm: boolean; bgmSize: number | null }) {
   const [state, formAction, pending] = useActionState(uploadBgmAction, init);
+  const [clearing, startClear] = useTransition();
+  const [cleared, setCleared] = useState(false);
+
+  function clear() {
+    if (!window.confirm("確定要清除背景音樂嗎？清除後會議閱讀器就不再播放 BGM。")) return;
+    startClear(async () => {
+      await clearBgmAction();
+      setCleared(true);
+    });
+  }
 
   return (
     <SectionCard
@@ -196,27 +207,32 @@ function BgmCard({ hasBgm, bgmSize }: { hasBgm: boolean; bgmSize: number | null 
       <div className="mb-3 rounded-xl border-2 border-foreground bg-secondary px-4 py-2.5 text-sm font-medium">
         目前狀態：{" "}
         <strong className="font-extrabold">
-          {hasBgm ? `已上傳（${formatBytes(bgmSize ?? 0)}）` : "尚未上傳，會議還沒有背景音樂"}
+          {hasBgm && !cleared
+            ? `已上傳（${formatBytes(bgmSize ?? 0)}）`
+            : "尚未上傳，會議還沒有背景音樂"}
         </strong>
       </div>
       <form
         action={formAction}
         onSubmit={(e) => {
-          if (
-            hasBgm &&
-            !window.confirm("確定要更換背景音樂嗎？舊的 mp3 會被覆蓋。")
-          ) {
+          if (hasBgm && !window.confirm("確定要更換背景音樂嗎？舊的 mp3 會被覆蓋。")) {
             e.preventDefault();
           }
         }}
         className="flex flex-col gap-3 sm:flex-row sm:items-center"
       >
         <FileInput name="bgm" accept="audio/mpeg,.mp3" className="sm:max-w-sm" />
-        <Button type="submit" variant="primary" disabled={pending}>
+        <Button type="submit" variant="primary" disabled={pending || clearing}>
           {pending ? "上傳中…" : hasBgm ? "更換音樂" : "上傳音樂"}
         </Button>
+        {hasBgm ? (
+          <Button variant="destructive" onClick={clear} disabled={pending || clearing}>
+            {clearing ? "清除中…" : "清除 BGM"}
+          </Button>
+        ) : null}
       </form>
       {state.saved ? <Banner tone="ok">BGM 已更新，新的會議閱讀器就會使用它。</Banner> : null}
+      {cleared ? <Banner tone="ok">BGM 已清除，會議閱讀器將不再播放背景音樂。</Banner> : null}
       {state.error ? <Banner tone="error">{state.error}</Banner> : null}
     </SectionCard>
   );

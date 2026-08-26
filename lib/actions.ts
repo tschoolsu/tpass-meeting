@@ -12,7 +12,7 @@ import {
 import { isStarted } from "@/lib/time";
 import { createApiKey, deleteApiKey } from "@/lib/api-keys";
 import { importAll } from "@/lib/backup";
-import { saveBgm, MAX_BGM_BYTES } from "@/lib/bgm";
+import { saveBgm, clearBgm, MAX_BGM_BYTES } from "@/lib/bgm";
 import {
   addNote,
   createMeeting,
@@ -183,6 +183,14 @@ export async function uploadBgmAction(
   await saveBgm(Buffer.from(await file.arrayBuffer()));
   revalidatePath("/panel");
   return { saved: true };
+}
+
+export async function clearBgmAction(): Promise<FormState> {
+  await requireAdmin();
+  await clearBgm();
+  revalidatePath("/panel");
+  revalidatePath("/read");
+  return {};
 }
 
 export async function createApiKeyAction(
