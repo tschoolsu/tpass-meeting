@@ -20,15 +20,17 @@ export default async function CreatePage({
 }: {
   searchParams: Promise<{ id?: string | string[] }>;
 }) {
-  const session = await requireManager("/create");
   const sp = await searchParams;
   const rawId = Array.isArray(sp.id) ? sp.id[0] : sp.id;
+
+  if (rawId && !/^\d+$/.test(rawId)) notFound();
+  const returnPath = rawId ? `/create?id=${rawId}` : "/create";
+  const session = await requireManager(returnPath);
 
   let initial = null;
   let meetingId: number | undefined;
 
   if (rawId) {
-    if (!/^\d+$/.test(rawId)) notFound();
     meetingId = Number(rawId);
     const detail = await getMeetingDetail(meetingId);
     if (!detail) notFound();

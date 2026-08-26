@@ -13,13 +13,14 @@ export default async function CheckinPage({
 }: {
   searchParams: Promise<{ id?: string | string[] }>;
 }) {
-  const session = await requireAccess("/checkin");
   const sp = await searchParams;
   const rawId = Array.isArray(sp.id) ? sp.id[0] : sp.id;
 
   // IDOR 防護：只接受正整數格式。
   if (!rawId || !/^\d+$/.test(rawId)) notFound();
   const id = Number(rawId);
+
+  const session = await requireAccess(`/checkin?id=${id}`);
 
   const meeting = await getMeeting(id);
   if (!meeting) notFound();

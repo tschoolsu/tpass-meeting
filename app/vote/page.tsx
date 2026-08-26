@@ -13,13 +13,14 @@ export default async function VotePage({
 }: {
   searchParams: Promise<{ id?: string | string[] }>;
 }) {
-  const session = await requireAccess("/vote");
   const sp = await searchParams;
   const rawId = Array.isArray(sp.id) ? sp.id[0] : sp.id;
 
   // IDOR 防護：只接受正整數格式。
   if (!rawId || !/^\d+$/.test(rawId)) notFound();
   const id = Number(rawId);
+
+  const session = await requireAccess(`/vote?id=${id}`);
 
   const flow = await getVoteFlow(id, session.email);
   if (!flow) notFound();

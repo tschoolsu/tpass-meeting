@@ -24,13 +24,14 @@ export default async function ReadPage({
 }: {
   searchParams: Promise<{ id?: string | string[] }>;
 }) {
-  const session = await requireAccess("/");
   const sp = await searchParams;
   const rawId = Array.isArray(sp.id) ? sp.id[0] : sp.id;
 
   // IDOR 防護：只接受正整數格式的會議 id，不接受任何其他輸入。
   if (!rawId || !/^\d+$/.test(rawId)) notFound();
   const id = Number(rawId);
+
+  const session = await requireAccess(`/read?id=${id}`);
 
   const detail = await getMeetingDetail(id);
   if (!detail) notFound();
