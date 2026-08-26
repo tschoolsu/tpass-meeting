@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAccess } from "@/lib/auth";
-import { getMeeting, getMeetingDetail, isParticipant } from "@/lib/meetings";
+import { getCheckInState, getMeeting, isParticipant } from "@/lib/meetings";
 import { CheckinButton } from "@/components/checkin-button";
 import { formatDate } from "@/components/meeting-card";
 import { Card, Tag } from "@/components/ui";
@@ -45,9 +45,7 @@ export default async function CheckinPage({
     );
   }
 
-  const myCheckin = invited
-    ? (await getMeetingDetail(id))?.participants.find((p) => p.email === session.email)?.checked_in ?? false
-    : false;
+  const myCheckin = invited ? await getCheckInState(id, session.email) : false;
 
   return (
     <div className="mx-auto flex min-h-[60vh] max-w-lg flex-col items-center justify-center">

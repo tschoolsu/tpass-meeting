@@ -132,6 +132,14 @@ export async function isParticipant(meetingId: number, email: string): Promise<b
   return rows.length > 0;
 }
 
+export async function getCheckInState(meetingId: number, email: string): Promise<boolean> {
+  const { rows } = await query<{ checked_in: boolean }>(
+    `SELECT checked_in FROM participants WHERE meeting_id = $1 AND email = $2`,
+    [meetingId, email],
+  );
+  return rows[0]?.checked_in ?? false;
+}
+
 export async function countUnanswered(meetingId: number, email: string): Promise<number> {
   const { rows } = await query<{ count: number }>(
     `SELECT COUNT(*)::int AS count
