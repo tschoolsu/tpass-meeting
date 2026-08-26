@@ -42,3 +42,6 @@ next-env.d.ts
 
 # other
 /specification
+
+# logs (pm2)
+/logs
