@@ -11,6 +11,7 @@ import { CopyLinkButton } from "@/components/copy-link";
 import { BgmPlayer } from "@/components/bgm-player";
 import { AgendaManager } from "@/components/agenda-manager";
 import { thLabel } from "@/components/agenda-manager";
+import { ParticipantBulk } from "@/components/participant-bulk";
 import { BtnLink, Card, Tag } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -107,6 +108,7 @@ export default async function ReadPage({
               <>
                 <BtnLink href={`/chair?id=${id}`} variant="primary">主席控制台</BtnLink>
                 <BtnLink href={`/display?id=${id}`} variant="tone">投放畫面</BtnLink>
+                <BtnLink href={`/report?id=${id}`} variant="accent">列印 PDF</BtnLink>
               </>
             ) : null}
           </div>
@@ -278,6 +280,7 @@ export default async function ReadPage({
               所有人都已完成簽到。
             </p>
           ) : null}
+          {canEdit ? <ParticipantBulk meetingId={id} /> : null}
         </Card>
       </section>
 

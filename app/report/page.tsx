@@ -1,0 +1,143 @@
+import { notFound } from "next/navigation";
+import { requireAccess } from "@/lib/auth";
+import { getMeetingDetail } from "@/lib/meetings";
+import { formatTaipei } from "@/lib/time";
+import { thLabel } from "@/components/agenda-manager";
+import { PrintButton } from "@/components/print-button";
+
+export const dynamic = "force-dynamic";
+
+const statusLabel: Record<string, string> = {
+  draft: "草稿",
+  published: "已發布",
+  live: "進行中",
+  closed: "已結束",
+};
+
+export default async function ReportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ id?: string | string[] }>;
+}) {
+  const sp = await searchParams;
+  const rawId = Array.isArray(sp.id) ? sp.id[0] : sp.id;
+  if (!rawId || !/^\d+$/.test(rawId)) notFound();
+  const id = Number(rawId);
+
+  await requireAccess(`/report?id=${id}`);
+
+  const detail = await getMeetingDetail(id);
+  if (!detail) notFound();
+
+  const { meeting, participants, agenda, notes } = detail;
+  const checkedCount = participants.filter((p) => p.checked_in).length;
+
+  return (
+    <div className="report-doc">
+      <style>{`
+        .report-doc { font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif; }
+        .report-doc h1 { font-size: 24px; margin: 4px 0; }
+        .report-doc h2 { font-size: 16px; margin: 28px 0 8px; border-bottom: 2px solid #111; padding-bottom: 4px; }
+        .report-doc .meta { color: #555; font-size: 13px; line-height: 1.7; }
+        .report-doc .meta b { color: #111; }
+        .report-doc table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 8px; }
+        .report-doc th, .report-doc td { border: 1px solid #999; padding: 5px 8px; text-align: left; vertical-align: top; }
+        .report-doc th { background: #f0f0f0; }
+        .report-doc .agenda-title { font-weight: 700; margin: 12px 0 4px; }
+        .report-doc .agenda-desc { white-space: pre-wrap; color: #444; font-size: 12.5px; margin: 0 0 8px; }
+        .report-doc .note { border: 1px solid #999; border-radius: 6px; padding: 8px 10px; margin-top: 8px; }
+        .report-doc .note .who { font-weight: 700; font-size: 12px; }
+        .report-doc .note .when { color: #777; font-size: 11px; font-weight: 400; }
+        .report-doc .note p { margin: 4px 0 0; white-space: pre-wrap; font-size: 13px; }
+        .report-doc .empty { color: #777; font-style: italic; font-size: 12.5px; }
+        .report-doc footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid #ccc; color: #888; font-size: 11px; }
+        @media print {
+          .print-hide { display: none !important; }
+          .report-doc { padding: 0; }
+          .report-doc th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+      `}</style>
+
+      <div className="print-hide mb-4 flex justify-end">
+        <PrintButton />
+      </div>
+
+      <h1>{meeting.department ? `[${meeting.department}] ` : ""}{meeting.title}</h1>
+      <p className="meta">
+        <b>時間：</b>{formatTaipei(meeting.starts_at)}（UTC+8）
+        <span>　</span><b>狀態：</b>{statusLabel[meeting.status] ?? meeting.status}
+      </p>
+      {meeting.location ? <p className="meta"><b>地點：</b>{meeting.location}</p> : null}
+      {meeting.online_link ? <p className="meta"><b>線上：</b>{meeting.online_link}</p> : null}
+      <p className="meta"><b>建立者：</b>{meeting.owner_name}</p>
+      {meeting.description ? <p className="meta" style={{ whiteSpace: "pre-wrap" }}>{meeting.description}</p> : null}
+
+      <h2>出席與簽到</h2>
+      <p className="meta"><b>應到：</b>{participants.length} 人　<b>已簽到：</b>{checkedCount} 人</p>
+      <table>
+        <thead>
+          <tr><th style={{ width: "22%" }}>信箱</th><th style={{ width: "12%" }}>年級</th><th>狀態</th></tr>
+        </thead>
+        <tbody>
+          {participants.map((p) => (
+            <tr key={p.email}>
+              <td>{p.email}</td>
+              <td>{p.grade || "—"}</td>
+              <td>{p.checked_in ? "已簽到" : "未簽到"}</td>
+            </tr>
+          ))}
+          {participants.length === 0 ? (
+            <tr><td colSpan={3} className="empty">本次無與會者名單。</td></tr>
+          ) : null}
+        </tbody>
+      </table>
+
+      <h2>議程與表決</h2>
+      {agenda.length === 0 ? <p className="empty">尚無議程。</p> : null}
+      {agenda.map((a) => (
+        <div key={a.id}>
+          <p className="agenda-title">#{a.position + 1}　{a.title}</p>
+          {a.description ? <p className="agenda-desc">{a.description}</p> : null}
+          {a.motions.length > 0 ? (
+            <table>
+              <thead>
+                <tr>
+                  <th>表決案</th>
+                  <th style={{ width: "22%" }}>可決門檻</th>
+                  <th style={{ width: "12%" }}>結果</th>
+                  <th style={{ width: "34%" }}>票數</th>
+                </tr>
+              </thead>
+              <tbody>
+                {a.motions.map((m) => (
+                  <tr key={m.id}>
+                    <td>{m.title}</td>
+                    <td>{thLabel(m.threshold)}</td>
+                    <td>{m.status === "open" ? "表決中" : m.status === "closed" ? "已結算" : "未開放"}</td>
+                    <td>同意 {m.agree} / 反對 {m.against} / 棄權 {m.abstain}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : null}
+          {a.attachments.length > 0 ? (
+            <p className="meta" style={{ marginTop: "6px" }}>
+              <b>附件：</b>{a.attachments.map((x) => x.filename).join("、")}
+            </p>
+          ) : null}
+        </div>
+      ))}
+
+      <h2>會議紀錄</h2>
+      {notes.length === 0 ? <p className="empty">無會議紀錄。</p> : null}
+      {notes.map((n) => (
+        <div key={n.id} className="note">
+          <div className="who">{n.author_name} <span className="when">· {formatTaipei(n.created_at)}</span></div>
+          <p>{n.body}</p>
+        </div>
+      ))}
+
+      <footer>由 T-Pass Meeting 自動產生 · {formatTaipei(new Date().toISOString())}（UTC+8）</footer>
+    </div>
+  );
+}

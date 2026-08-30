@@ -6,7 +6,9 @@ import {
   addAttachmentAction,
   addMotionAction,
   deleteAgendaItemAction,
+  deleteAttachmentAction,
   deleteMotionAction,
+  moveAgendaItemAction,
 } from "@/lib/actions";
 import { Button, Card, Field, Input, Textarea, Tag } from "@/components/ui";
 
@@ -60,10 +62,30 @@ export function AgendaManager({
         </Button>
       </form>
 
-      {agenda.map((item) => (
+      {agenda.map((item, i) => (
         <div key={item.id} className="rounded-xl border-2 border-foreground bg-card">
           <div className="flex items-center justify-between gap-3 border-b-2 border-dashed border-foreground/20 px-4 py-3">
             <p className="min-w-0 flex-1 truncate text-sm font-extrabold">{item.title}</p>
+            <form
+              action={async () => {
+                await moveAgendaItemAction(item.id, "up", meetingId);
+                router.refresh();
+              }}
+            >
+              <Button type="submit" variant="tone" size="sm" disabled={i === 0}>
+                ↑ 上移
+              </Button>
+            </form>
+            <form
+              action={async () => {
+                await moveAgendaItemAction(item.id, "down", meetingId);
+                router.refresh();
+              }}
+            >
+              <Button type="submit" variant="tone" size="sm" disabled={i === agenda.length - 1}>
+                ↓ 下移
+              </Button>
+            </form>
             <form
               action={async () => {
                 await deleteAgendaItemAction(item.id, meetingId);
@@ -144,13 +166,23 @@ export function AgendaManager({
             {/* 附件 */}
             <div className="space-y-2">
               {item.attachments.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
+                <ul className="flex flex-wrap gap-2">
                   {item.attachments.map((a) => (
-                    <Tag key={a.id} className="bg-secondary">
-                      {a.filename}
-                    </Tag>
+                    <li key={a.id} className="flex items-center gap-1">
+                      <Tag className="bg-secondary">{a.filename}</Tag>
+                      <form
+                        action={async () => {
+                          await deleteAttachmentAction(a.id, meetingId);
+                          router.refresh();
+                        }}
+                      >
+                        <Button type="submit" variant="destructive" size="sm">
+                          刪除
+                        </Button>
+                      </form>
+                    </li>
                   ))}
-                </div>
+                </ul>
               ) : null}
               <form
                 action={async (fd) => {

@@ -308,7 +308,7 @@ export async function deleteAttachmentAction(attachmentId: number, meetingId: nu
   return {};
 }
 
-// ---- 批量匯入名單（需求 1a） ----
+// ---- 批量匯入名單（需求 1a：文字/CSV 上傳，可帶年級，逐行 email[,年級]） ----
 
 export async function addParticipantEmailsAction(meetingId: number, _prev: FormState, formData: FormData): Promise<FormState & { added?: number }> {
   const session = await requireManager();
@@ -316,23 +316,23 @@ export async function addParticipantEmailsAction(meetingId: number, _prev: FormS
   if (!ok) return { error: "你沒有權限編輯這份會議" };
 
   const raw = String(formData.get("participants") ?? "");
-  const grade = String(formData.get("grade") ?? "").trim();
-  const { parseParticipants, ValidationError: VE } = await import("@/lib/validation");
-  let emails: string[];
+  const defaultGrade = String(formData.get("grade") ?? "").trim();
+  const { parseParticipantLines, ValidationError: VE } = await import("@/lib/validation");
+  let entries: { email: string; grade: string }[];
   try {
-    emails = parseParticipants(raw);
+    entries = parseParticipantLines(raw, defaultGrade);
   } catch (err) {
     return { error: err instanceof VE ? err.message : "輸入資料不正確" };
   }
 
   const { query } = await import("@/lib/db");
   let added = 0;
-  for (const email of emails) {
+  for (const e of entries) {
     const r = await query(
       `INSERT INTO participants (meeting_id, email, grade)
        VALUES ($1, $2, $3)
        ON CONFLICT (meeting_id, email) DO UPDATE SET grade = EXCLUDED.grade`,
-      [meetingId, email, grade],
+      [meetingId, e.email, e.grade],
     );
     if (r.rowCount && r.rowCount > 0) added++;
   }

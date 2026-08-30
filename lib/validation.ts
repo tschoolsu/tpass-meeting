@@ -12,6 +12,26 @@ export class ValidationError extends Error {
   }
 }
 
+// 逐行解析「email[,年級]」名單（CSV/文字上傳），每行年級可選，缺省時用 defaultGrade。
+// 回傳去重後的 { email, grade } 清單；任一 email 格式錯誤即丟 ValidationError。
+export function parseParticipantLines(raw: string, defaultGrade = ""): { email: string; grade: string }[] {
+  const seen = new Set<string>();
+  const out: { email: string; grade: string }[] = [];
+  for (const line of raw.split(/[\r\n]+/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const parts = trimmed.split(/[,;\t]/).map((s) => s.trim());
+    const email = (parts[0] ?? "").toLowerCase();
+    if (!EMAIL_RE.test(email)) throw new ValidationError(`信箱格式不正確：${email || trimmed}`);
+    if (seen.has(email)) continue;
+    seen.add(email);
+    const grade = (parts[1] ?? "").trim() || defaultGrade;
+    out.push({ email, grade });
+  }
+  if (out.length > MAX_PARTICIPANTS) throw new ValidationError(`參與人最多 ${MAX_PARTICIPANTS} 人`);
+  return out;
+}
+
 export function parseParticipants(raw: string): string[] {
   const seen = new Set<string>();
   const emails: string[] = [];

@@ -17,7 +17,7 @@ export async function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <AccessGate restriction={perm.restriction} reason={perm.reason} />
-      <header className="sticky top-0 z-50 border-b-2 border-foreground bg-background/90 backdrop-blur-md">
+      <header className="sticky top-0 z-50 border-b-2 border-foreground bg-background/90 backdrop-blur-md print:hidden">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
           <Link
             href="/"
@@ -67,7 +67,7 @@ export async function AppShell({ children }: { children: ReactNode }) {
       </header>
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">{children}</main>
-      <footer className="border-t-2 border-dashed border-foreground/30 py-4 text-center font-mono text-xs font-bold text-muted-foreground">
+      <footer className="border-t-2 border-dashed border-foreground/30 py-4 text-center font-mono text-xs font-bold text-muted-foreground print:hidden">
         T-Pass Meeting · 會議輔助系統
       </footer>
     </div>
