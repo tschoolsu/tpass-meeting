@@ -10,7 +10,7 @@ import { DeleteMeetingButton } from "@/components/delete-meeting";
 import { CopyLinkButton } from "@/components/copy-link";
 import { BgmPlayer } from "@/components/bgm-player";
 import { AgendaManager } from "@/components/agenda-manager";
-import { thLabel } from "@/components/agenda-manager";
+import { thLabel } from "@/lib/threshold";
 import { ParticipantBulk } from "@/components/participant-bulk";
 import { BtnLink, Card, Tag } from "@/components/ui";
 

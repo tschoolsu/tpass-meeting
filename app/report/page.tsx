@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { requireAccess } from "@/lib/auth";
 import { getMeetingDetail } from "@/lib/meetings";
 import { formatTaipei } from "@/lib/time";
-import { thLabel } from "@/components/agenda-manager";
+import { thLabel } from "@/lib/threshold";
 import { PrintButton } from "@/components/print-button";
 
 export const dynamic = "force-dynamic";
