@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { authenticateApiKey, extractKey } from "@/lib/api-keys";
-import { createMeeting, getMeetingDetail } from "@/lib/meetings";
+import { createMeeting } from "@/lib/meetings";
 import { parseMeetingPayload, ValidationError } from "@/lib/validation";
 
 // POST /api/v1/meetings —— 建立會議（需 API key）。
@@ -20,9 +20,6 @@ export async function POST(request: Request) {
   let input;
   try {
     input = parseMeetingPayload(body);
-    if (input.votingEnabled && input.questions.length === 0) {
-      return NextResponse.json({ error: "啟用表決時至少要填寫一題" }, { status: 400 });
-    }
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof ValidationError ? err.message : "輸入資料不正確" },
@@ -35,9 +32,5 @@ export async function POST(request: Request) {
     email: "",
     name: `API：${identity.label}`,
   });
-  const detail = await getMeetingDetail(id);
-  return NextResponse.json(
-    { id, vote_id: detail?.vote?.id ?? null },
-    { status: 201 },
-  );
+  return NextResponse.json({ id }, { status: 201 });
 }

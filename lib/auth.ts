@@ -90,14 +90,13 @@ export function loginUrlFor(returnPath = "/"): string {
   return u.toString();
 }
 
-// 頁面守門：未登入 → auth；ban / default（非 warning）→ portal；read=false → denied。
-// warning 使用者（即使 role 是 default）仍可瀏覽，只會多跳出警告彈窗。
+// 頁面守門：未登入 → auth；ban → portal；read=false → denied。
+// 一般學生（default 非 warning）也可瀏覽，但僅能存取自己受邀的會議（需求：T-Pass 入口）。
 export async function requireAccess(returnPath = "/"): Promise<TPassClaims> {
   const session = await getSession();
   if (!session) redirect(loginUrlFor(returnPath));
   const perm = getPermissionEntry(session);
   if (perm.restriction === "ban") redirect(portalUrl());
-  if (perm.role === "default" && perm.restriction !== "warning") redirect(portalUrl());
   if (!perm.read) redirect(`${process.env.AUTH_DENIED_URL || "https://auth.tschoolsu.org/denied"}?service=${serviceId()}`);
   return session;
 }

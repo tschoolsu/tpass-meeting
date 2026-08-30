@@ -1,18 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isAdmin, isModerator, requireAccess } from "@/lib/auth";
-import {
-  countUnanswered,
-  getMeetingDetail,
-  getMyAnsweredQuestionIds,
-} from "@/lib/meetings";
+import { getMeetingDetail } from "@/lib/meetings";
 import { formatTaipei, isStarted } from "@/lib/time";
 import { hasBgm } from "@/lib/bgm";
-import { PieChart } from "@/components/pie-chart";
+import { liveUrl } from "@/lib/urls";
 import { NoteBar } from "@/components/note-bar";
 import { DeleteMeetingButton } from "@/components/delete-meeting";
 import { CopyLinkButton } from "@/components/copy-link";
 import { BgmPlayer } from "@/components/bgm-player";
+import { AgendaManager } from "@/components/agenda-manager";
+import { thLabel } from "@/components/agenda-manager";
 import { BtnLink, Card, Tag } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +25,6 @@ export default async function ReadPage({
   const sp = await searchParams;
   const rawId = Array.isArray(sp.id) ? sp.id[0] : sp.id;
 
-  // IDOR 防護：只接受正整數格式的會議 id，不接受任何其他輸入。
   if (!rawId || !/^\d+$/.test(rawId)) notFound();
   const id = Number(rawId);
 
@@ -38,31 +35,27 @@ export default async function ReadPage({
 
   const [bgm] = await Promise.all([hasBgm()]);
 
-  const { meeting, participants, notes } = detail;
-  const vote = detail.vote;
+  const { meeting, participants, agenda, notes } = detail;
   const isAdminUser = isAdmin(session);
   const canEdit = isAdminUser || meeting.owner_sub === session.sub;
+  const isManager = isAdminUser || isModerator(session);
   const isMeParticipant = participants.some((p) => p.email === session.email);
-  const canVote = isMeParticipant;
 
   const myCheckin = participants.find((p) => p.email === session.email)?.checked_in ?? false;
   const notCheckedIn = participants.filter((p) => !p.checked_in);
   const checkedCount = participants.length - notCheckedIn.length;
   const started = isStarted(meeting.starts_at);
 
-  const [unanswered, myAnswered] = meeting.voting_enabled && canVote && vote
-    ? await Promise.all([
-        countUnanswered(id, session.email),
-        getMyAnsweredQuestionIds(id, session.email),
-      ])
-    : [0, new Set<number>()];
+  // 目前有「表決中」的表決案（供使用者立即前往投票）
+  const openMotions = agenda.flatMap((a) => a.motions).filter((m) => m.status === "open");
+  const pendingMotions = agenda.flatMap((a) => a.motions).filter((m) => m.status === "" && started);
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-4xl">
       {bgm ? <BgmPlayer /> : null}
       <Link
         href="/"
-        className="inline-flex items-center gap-1.5 rounded-xl border-2 border-foreground bg-card px-3.5 py-2 text-sm font-bold shadow-[3px_3px_0_0_var(--color-foreground)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_0_var(--color-foreground)] active:translate-y-0 active:shadow-[2px_2px_0_0_var(--color-foreground)]"
+        className="inline-flex items-center gap-1.5 rounded-xl border-2 border-foreground bg-card px-3.5 py-2 text-sm font-bold shadow-[3px_3px_0_0_var(--color-foreground)] transition-all duration-200 hover:-translate-y-0.5"
       >
         ← 返回首頁
       </Link>
@@ -75,23 +68,45 @@ export default async function ReadPage({
               <span className="font-mono text-xs font-bold text-muted-foreground">
                 {formatTaipei(meeting.starts_at)}（UTC+8）
               </span>
+              {meeting.status !== "draft" ? (
+                <Tag className={meeting.status === "closed" ? "bg-secondary" : "bg-accent/10"}>
+                  {meeting.status === "published" ? "已發布" : meeting.status === "live" ? "進行中" : "已結束"}
+                </Tag>
+              ) : (
+                <Tag className="bg-secondary">草稿</Tag>
+              )}
             </div>
             <h1 className="mt-2 text-2xl font-extrabold leading-snug tracking-tight sm:text-3xl">
               {meeting.department ? <span className="text-tone-text">[{meeting.department}] </span> : null}
               {meeting.title}
             </h1>
-            <p className="mt-2 text-sm font-medium text-muted-foreground">
-              建立者：{meeting.owner_name}
-            </p>
+            <p className="mt-2 text-sm font-medium text-muted-foreground">建立者：{meeting.owner_name}</p>
+            {meeting.location ? (
+              <p className="mt-1 text-sm font-bold">地點：{meeting.location}</p>
+            ) : null}
+            {meeting.online_link ? (
+              <p className="mt-1 text-sm font-bold">
+                線上：<a className="text-primary underline" href={meeting.online_link}>{meeting.online_link}</a>
+              </p>
+            ) : null}
+            {meeting.description ? (
+              <p className="mt-3 whitespace-pre-wrap rounded-xl border-2 border-foreground bg-secondary px-3 py-2 text-sm font-medium">
+                {meeting.description}
+              </p>
+            ) : null}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             {canEdit ? (
               <>
-                <BtnLink href={`/create?id=${id}`} variant="accent">
-                  編輯
-                </BtnLink>
+                <BtnLink href={`/create?id=${id}`} variant="accent">編輯</BtnLink>
                 <DeleteMeetingButton meetingId={id} title={meeting.title} />
+              </>
+            ) : null}
+            {isManager ? (
+              <>
+                <BtnLink href={`/chair?id=${id}`} variant="primary">主席控制台</BtnLink>
+                <BtnLink href={`/display?id=${id}`} variant="tone">投放畫面</BtnLink>
               </>
             ) : null}
           </div>
@@ -99,76 +114,127 @@ export default async function ReadPage({
 
         <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="rounded-xl border-2 border-foreground bg-tone-bg px-4 py-3">
-            <div className="font-mono text-xs font-bold text-tone-text">簽到人數</div>
-            <div className="mt-1 font-mono text-2xl font-extrabold">{checkedCount}</div>
+            <div className="font-mono text-xs font-bold text-tone-text">應到人數</div>
+            <div className="mt-1 font-mono text-2xl font-extrabold">{participants.length}</div>
+          </div>
+          <div className="rounded-xl border-2 border-foreground bg-card px-4 py-3">
+            <div className="font-mono text-xs font-bold text-muted-foreground">實到（已簽到）</div>
+            <div className="mt-1 font-mono text-2xl font-extrabold text-tone-text">{checkedCount}</div>
           </div>
           <div className="rounded-xl border-2 border-foreground bg-card px-4 py-3">
             <div className="font-mono text-xs font-bold text-muted-foreground">尚未簽到</div>
-            <div className="mt-1 font-mono text-2xl font-extrabold">{notCheckedIn.length}</div>
-          </div>
-          <div className="rounded-xl border-2 border-foreground bg-card px-4 py-3">
-            <div className="font-mono text-xs font-bold text-muted-foreground">參與人</div>
-            <div className="mt-1 font-mono text-2xl font-extrabold">{participants.length}</div>
+            <div className="mt-1 font-mono text-2xl font-extrabold text-destructive">{notCheckedIn.length}</div>
           </div>
         </div>
 
         <div className="mt-6 flex flex-wrap items-center gap-2">
           {isMeParticipant && !myCheckin && started ? (
-            <BtnLink href={`/checkin?id=${id}`} variant="primary">
-              前往簽到
-            </BtnLink>
+            <BtnLink href={`/checkin?id=${id}`} variant="primary">前往簽到</BtnLink>
           ) : isMeParticipant && !myCheckin ? (
-            <Tag className="bg-accent/10">
-              簽到於 {formatTaipei(meeting.starts_at)}（UTC+8）開始後開放
-            </Tag>
+            <Tag className="bg-accent/10">簽到於 {formatTaipei(meeting.starts_at)} 開始後開放</Tag>
           ) : myCheckin ? (
             <Tag className="bg-tone-badge">你已完成簽到</Tag>
           ) : null}
 
-          {meeting.voting_enabled && canVote && vote && !started ? (
-            <Tag className="bg-accent/10">
-              表決於 {formatTaipei(meeting.starts_at)}（UTC+8）開始後開放
-            </Tag>
-          ) : meeting.voting_enabled && canVote && vote && unanswered > 0 ? (
-            <BtnLink href={`/vote?id=${vote.id}`} variant="primary">
-              前往表決（尚有 {unanswered} 題）
+          {openMotions.length > 0 && isMeParticipant ? (
+            <BtnLink href={`/vote?id=${openMotions[0].id}`} variant="primary" className="animate-pulse">
+              前往表決（進行中）
             </BtnLink>
-          ) : meeting.voting_enabled && canVote && vote ? (
-            <Tag className="bg-tone-badge">你已完成所有表決</Tag>
+          ) : openMotions.length === 0 && pendingMotions.length > 0 && isMeParticipant ? (
+            <Tag className="bg-accent/10">有 {pendingMotions.length} 項表決待主席開放</Tag>
           ) : null}
+
+          <BtnLink href={`/ballots?meetingId=${id}`} variant="tone">具名投票紀錄</BtnLink>
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-2 border-t-2 border-dashed border-foreground/30 pt-4">
           <span className="text-xs font-bold text-muted-foreground">分享連結：</span>
           <CopyLinkButton url={`${selfUrl}/checkin?id=${id}`} label="複製簽到連結" />
-          {vote ? (
-            <CopyLinkButton url={`${selfUrl}/vote?id=${vote.id}`} label="複製表決連結" />
-          ) : null}
+          {isManager ? <CopyLinkButton url={liveUrl(id)} label="複製投放連結" /> : null}
         </div>
       </Card>
 
-      {meeting.voting_enabled && vote ? (
-        <section className="mt-8">
-          <h2 className="mb-3 text-lg font-extrabold">表決結果</h2>
-          {started ? (
-            <div className="flex flex-col gap-4">
-              {vote.questions.map((v) => (
-                <PieChart
-                  key={v.id}
-                  title={v.question}
-                  yes={v.yes}
-                  no={v.no}
-                  answeredByMe={myAnswered.has(v.id)}
-                />
-              ))}
-            </div>
-          ) : (
-            <p className="rounded-xl border-2 border-foreground bg-secondary px-4 py-3 text-sm font-medium text-muted-foreground">
-              表決將於 {formatTaipei(meeting.starts_at)}（UTC+8）開始後開放。
+      {/* 議程與議案 */}
+      <section className="mt-8">
+        <h2 className="mb-3 text-lg font-extrabold">議程與議案</h2>
+        {agenda.length === 0 ? (
+          <Card>
+            <p className="text-sm font-medium text-muted-foreground">
+              尚未建立議程{canEdit ? "，請使用下方管理工具新增。" : "。"}
             </p>
-          )}
-        </section>
-      ) : null}
+          </Card>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {agenda.map((a) => (
+              <Card key={a.id}>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-base font-extrabold">#{a.position + 1} {a.title}</h3>
+                  {a.motions.length > 0 ? <Tag className="bg-tone-badge">{a.motions.length} 項表決</Tag> : null}
+                </div>
+                {a.description ? (
+                  <p className="mt-2 whitespace-pre-wrap text-sm font-medium text-muted-foreground">{a.description}</p>
+                ) : null}
+                {a.attachments.length > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {a.attachments.map((att) => (
+                      <CopyLinkButton
+                        key={att.id}
+                        url={`${selfUrl}/api/agenda/attachments/${att.id}`}
+                        label={`附件：${att.filename}`}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+                {a.motions.length > 0 ? (
+                  <div className="mt-3 space-y-2">
+                    {a.motions.map((m) => (
+                      <div key={m.id} className="rounded-xl border-2 border-foreground bg-tone-bg px-3 py-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm font-extrabold">{m.title}</p>
+                          <div className="flex items-center gap-2">
+                            <Tag className="bg-secondary">{thLabel(m.threshold)}</Tag>
+                            <Tag className={m.status === "open" ? "bg-accent" : m.status === "closed" ? "bg-secondary" : "bg-tone-badge"}>
+                              {m.status === "open" ? "表決中" : m.status === "closed" ? "已結算" : "未開放"}
+                            </Tag>
+                          </div>
+                        </div>
+                        {m.description ? (
+                          <p className="mt-1 text-xs font-medium text-muted-foreground">{m.description}</p>
+                        ) : null}
+                        <div className="mt-2 flex gap-4 font-mono text-sm font-bold">
+                          <span className="text-primary">同意 {m.agree}</span>
+                          <span className="text-destructive">反對 {m.against}</span>
+                          <span className="text-muted-foreground">棄權 {m.abstain}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {canEdit ? (
+          <div className="mt-6">
+            <AgendaManager
+              meetingId={id}
+              agenda={agenda.map((a) => ({
+                id: a.id,
+                title: a.title,
+                description: a.description,
+                motions: a.motions.map((m) => ({
+                  id: m.id,
+                  title: m.title,
+                  threshold: m.threshold,
+                  status: m.status,
+                })),
+                attachments: a.attachments.map((x) => ({ id: x.id, filename: x.filename })),
+              }))}
+            />
+          </div>
+        ) : null}
+      </section>
 
       <section className="mt-8">
         <h2 className="mb-3 text-lg font-extrabold">
@@ -181,7 +247,10 @@ export default async function ReadPage({
           <ul className="divide-y-2 divide-dashed divide-foreground/15">
             {participants.map((p) => (
               <li key={p.email} className="flex items-center justify-between gap-3 py-2.5">
-                <span className="font-mono text-sm font-bold">{p.email}</span>
+                <span className="font-mono text-sm font-bold">
+                  {p.email}
+                  {p.grade ? <span className="ml-2 text-xs font-bold text-muted-foreground">[{p.grade}]</span> : null}
+                </span>
                 {p.checked_in ? (
                   <Tag className="bg-tone-badge">已簽到</Tag>
                 ) : (
@@ -190,17 +259,12 @@ export default async function ReadPage({
               </li>
             ))}
             {participants.length === 0 ? (
-              <li className="py-4 text-center text-sm font-medium text-muted-foreground">
-                尚未邀請任何參與人
-              </li>
+              <li className="py-4 text-center text-sm font-medium text-muted-foreground">尚未邀請任何參與人</li>
             ) : null}
           </ul>
-
           {notCheckedIn.length > 0 ? (
             <div className="mt-4 rounded-xl border-2 border-destructive bg-destructive/10 px-4 py-3">
-              <p className="text-sm font-extrabold text-destructive">
-                尚未簽到（{notCheckedIn.length} 人）
-              </p>
+              <p className="text-sm font-extrabold text-destructive">尚未簽到（{notCheckedIn.length} 人）</p>
               <ul className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
                 {notCheckedIn.map((p) => (
                   <li key={p.email} className="font-mono text-xs font-bold">

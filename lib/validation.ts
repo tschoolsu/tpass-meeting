@@ -4,7 +4,6 @@ import { parseTaipeiLocal } from "@/lib/time";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DATETIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 const MAX_PARTICIPANTS = 500;
-const MAX_QUESTIONS = 50;
 
 export class ValidationError extends Error {
   constructor(message: string) {
@@ -29,18 +28,6 @@ export function parseParticipants(raw: string): string[] {
   return emails;
 }
 
-function parseQuestions(raw: string): string[] {
-  const questions: string[] = [];
-  for (const part of raw.split("\n")) {
-    const q = part.trim();
-    if (!q) continue;
-    if (q.length > 500) throw new ValidationError("表決題目不可超過 500 字");
-    questions.push(q);
-  }
-  if (questions.length > MAX_QUESTIONS) throw new ValidationError(`表決題目最多 ${MAX_QUESTIONS} 題`);
-  return questions;
-}
-
 function parseStartsAt(raw: string): string {
   const value = raw.trim();
   if (!DATETIME_RE.test(value)) throw new ValidationError("會議開始時間格式不正確");
@@ -55,30 +42,36 @@ function parseTitle(raw: string): string {
   return title;
 }
 
+function parseText(raw: unknown, max: number, label: string): string {
+  const value = String(raw ?? "").trim();
+  if (value.length > max) throw new ValidationError(`${label}不可超過 ${max} 字`);
+  return value;
+}
+
 export function parseMeeting(formData: FormData): MeetingInput {
-  const votingEnabled = formData.get("voting_enabled") === "true" || formData.get("voting_enabled") === "on";
   return {
     title: parseTitle(String(formData.get("title") ?? "")),
     department: String(formData.get("department") ?? "").trim(),
     startsAt: parseStartsAt(String(formData.get("starts_at") ?? "")),
     participantEmails: parseParticipants(String(formData.get("participants") ?? "")),
-    votingEnabled,
-    questions: votingEnabled ? parseQuestions(String(formData.get("questions") ?? "")) : [],
+    location: parseText(formData.get("location"), 200, "地點"),
+    onlineLink: parseText(formData.get("online_link"), 1000, "線上連結"),
+    description: parseText(formData.get("description"), 10000, "會議說明"),
   };
 }
 
-// API 建立會議用：接受 JSON body（participants / questions 可為陣列或換行字串）。
+// API 建立會議用：接受 JSON body（participants 可為陣列或換行字串）。
 export function parseMeetingPayload(body: unknown): MeetingInput {
   if (typeof body !== "object" || body === null) throw new ValidationError("請求內容格式不正確");
   const b = body as Record<string, unknown>;
-  const votingEnabled = b.voting_enabled === true;
   const toLines = (v: unknown) => (Array.isArray(v) ? v.map(String).join("\n") : String(v ?? ""));
   return {
     title: parseTitle(String(b.title ?? "")),
     department: String(b.department ?? "").trim(),
     startsAt: parseStartsAt(String(b.starts_at ?? "")),
     participantEmails: parseParticipants(toLines(b.participants)),
-    votingEnabled,
-    questions: votingEnabled ? parseQuestions(toLines(b.questions)) : [],
+    location: parseText(b.location, 200, "地點"),
+    onlineLink: parseText(b.online_link, 1000, "線上連結"),
+    description: parseText(b.description, 10000, "會議說明"),
   };
 }

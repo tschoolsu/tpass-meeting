@@ -30,10 +30,15 @@ export function btn(variant: Variant = "default", extra = ""): string {
   return `${base} ${variants[variant]} ${extra}`.trim();
 }
 
-type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant };
+type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: "sm" | "md" };
 
-export function Button({ variant = "default", className = "", ...props }: BtnProps) {
-  return <button className={`${btn(variant)} ${className}`} {...props} />;
+const sizes: Record<"sm" | "md", string> = {
+  sm: "!px-3 !py-1.5 !text-xs",
+  md: "",
+};
+
+export function Button({ variant = "default", size = "md", className = "", ...props }: BtnProps) {
+  return <button className={`${btn(variant, sizes[size])} ${className}`} {...props} />;
 }
 
 type BtnLinkProps = AnchorHTMLAttributes<HTMLAnchorElement> & {

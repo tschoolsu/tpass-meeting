@@ -1,8 +1,9 @@
 import { notFound, redirect } from "next/navigation";
-import { isAdmin, requireManager } from "@/lib/auth";
+import { isAdmin, requireAccess } from "@/lib/auth";
 import { getMeetingDetail } from "@/lib/meetings";
 import { toDatetimeLocal } from "@/lib/time";
 import { MeetingForm } from "@/components/meeting-form";
+import { canStudentCreate } from "@/lib/permissions";
 import { BtnLink, PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +26,12 @@ export default async function CreatePage({
 
   if (rawId && !/^\d+$/.test(rawId)) notFound();
   const returnPath = rawId ? `/create?id=${rawId}` : "/create";
-  const session = await requireManager(returnPath);
+  const session = await requireAccess(returnPath);
+
+  // 新增：一般學生存取透過全置開關（需求 1c）
+  if (!rawId && !canStudentCreate(session)) {
+    redirect("/");
+  }
 
   let initial = null;
   let meetingId: number | undefined;
@@ -45,8 +51,9 @@ export default async function CreatePage({
       department: detail.meeting.department,
       startsAt: toDatetimeLocal(new Date(detail.meeting.starts_at)),
       participants: detail.participants.map((p) => p.email).join("\n"),
-      votingEnabled: detail.meeting.voting_enabled,
-      questions: detail.vote ? detail.vote.questions.map((v) => v.question).join("\n") : "",
+      location: detail.meeting.location,
+      onlineLink: detail.meeting.online_link,
+      description: detail.meeting.description,
     };
   }
 
@@ -56,8 +63,8 @@ export default async function CreatePage({
         title={meetingId ? "編輯會議記錄" : "創建會議記錄"}
         desc={
           meetingId
-            ? "修改會議資訊；已完成的簽到紀錄會保留。"
-            : "填寫會議資訊並邀請參與人，建立後即可進行簽到與表決。"
+            ? "修改會議資訊；已完成的簽到紀錄會保留。議程與表決請至會議頁新增。"
+            : "填寫會議資訊並邀請參與人，建立後可新增議程、表決並簽到。"
         }
         right={<BtnLink href="/">← 返回首頁</BtnLink>}
       />

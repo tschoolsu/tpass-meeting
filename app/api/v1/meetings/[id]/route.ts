@@ -26,9 +26,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       owner_email: detail.meeting.owner_email,
       owner_name: detail.meeting.owner_name,
       voting_enabled: detail.meeting.voting_enabled,
+      location: detail.meeting.location,
+      online_link: detail.meeting.online_link,
+      description: detail.meeting.description,
+      status: detail.meeting.status,
     },
-    vote: detail.vote,
-    participants: detail.participants.map((p) => ({ email: p.email, checked_in: p.checked_in })),
+    agenda: detail.agenda,
+    participants: detail.participants.map((p) => ({ email: p.email, grade: p.grade, checked_in: p.checked_in })),
     notes: detail.notes,
   });
 }

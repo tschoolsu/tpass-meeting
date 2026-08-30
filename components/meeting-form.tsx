@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 import Link from "next/link";
 import { createMeetingAction, updateMeetingAction, type FormState } from "@/lib/actions";
 import { btn, Button, Field, Input, Textarea } from "@/components/ui";
@@ -19,15 +19,15 @@ export function MeetingForm({
     department: string;
     startsAt: string;
     participants: string;
-    votingEnabled: boolean;
-    questions: string;
+    location: string;
+    onlineLink: string;
+    description: string;
   } | null;
 }) {
   const action = meetingId
     ? updateMeetingAction.bind(null, meetingId)
     : createMeetingAction;
   const [state, formAction, pending] = useActionState(action, initialState);
-  const [voting, setVoting] = useState(initial?.votingEnabled ?? false);
 
   const allDepartments = initial?.department && !departments.includes(initial.department)
     ? [initial.department, ...departments]
@@ -61,20 +61,33 @@ export function MeetingForm({
         </Field>
       </div>
 
-      <Field label="部會" htmlFor="department" hint="顯示於標題前方括號">
-        <select
-          id="department"
-          name="department"
-          defaultValue={initial?.department ?? ""}
-          className="w-full rounded-xl border-2 border-foreground bg-card px-3 py-2 text-sm font-medium shadow-[2px_2px_0_0_var(--color-foreground)] focus:outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="">無</option>
-          {allDepartments.map((d) => (
-            <option key={d} value={d}>
-              {d}
-            </option>
-          ))}
-        </select>
+      <div className="grid gap-5 sm:grid-cols-2">
+        <Field label="部會" htmlFor="department">
+          <select
+            id="department"
+            name="department"
+            defaultValue={initial?.department ?? ""}
+            className="w-full rounded-xl border-2 border-foreground bg-card px-3 py-2 text-sm font-medium shadow-[2px_2px_0_0_var(--color-foreground)] focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            <option value="">無</option>
+            {allDepartments.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="地點" htmlFor="location">
+          <Input id="location" name="location" placeholder="例：後棟 3F 會議室" defaultValue={initial?.location} maxLength={200} />
+        </Field>
+      </div>
+
+      <Field label="線上連結" htmlFor="online_link" hint="選填">
+        <Input id="online_link" name="online_link" type="url" placeholder="https://..." defaultValue={initial?.onlineLink} maxLength={1000} />
+      </Field>
+
+      <Field label="會議說明" htmlFor="description" hint="支援長文，選填">
+        <Textarea id="description" name="description" rows={4} placeholder="會議目的、與會須知…" defaultValue={initial?.description} />
       </Field>
 
       <Field
@@ -90,39 +103,6 @@ export function MeetingForm({
           defaultValue={initial?.participants}
         />
       </Field>
-
-      <div className="flex items-center gap-3 rounded-xl border-2 border-foreground bg-tone-bg px-4 py-3">
-        <input
-          id="voting_enabled"
-          name="voting_enabled"
-          type="checkbox"
-          className="h-5 w-5 accent-[var(--color-primary)]"
-          checked={voting}
-          onChange={(e) => setVoting(e.target.checked)}
-        />
-        <label htmlFor="voting_enabled" className="text-sm font-extrabold">
-          啟用表決
-        </label>
-        <span className="text-xs font-medium text-muted-foreground">
-          啟用後參與人可進行是／否表決
-        </span>
-      </div>
-
-      {voting ? (
-        <Field
-          label="表決題目"
-          htmlFor="questions"
-          hint="每行一題，為是／否題"
-        >
-          <Textarea
-            id="questions"
-            name="questions"
-            rows={4}
-            placeholder={"同意下學期活動預算案\n延後期中檢討會議時間"}
-            defaultValue={initial?.questions}
-          />
-        </Field>
-      ) : null}
 
       {state.error ? (
         <p role="alert" className="rounded-xl border-2 border-destructive bg-destructive/10 px-4 py-2.5 text-sm font-bold text-destructive">
