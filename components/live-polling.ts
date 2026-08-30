@@ -10,7 +10,6 @@ export interface LiveMotion {
   status: string;
   agree: number;
   against: number;
-  abstain: number;
 }
 
 export interface LiveAgendaItem {

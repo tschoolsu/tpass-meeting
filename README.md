@@ -8,8 +8,8 @@
 - **創建／編輯 `/create`**：填寫會議資訊（標題、時間、部會、地點、線上連結、說明、參與人 Email）。一般學生能否自行建會由全置開關 `ALLOW_STUDENT_CREATE` 決定（需求：自主建立會議權限開關）。
 - **議程與議案**（在會議閱讀器 `/read` 內管理）：新增／刪除議程項目（支援長文說明），每項議程下可掛多個**表決案（motion）**，各自設定**可決門檻**（出席 1/2＋簡單多數、2/3＋1/2、2/3＋2/3、3/4）。會議開始表決前可動態新增／修改／刪除（需求：動態議程與修正機制）。支援議程**附件**上傳（PDF、預算表等）。
 - **主席控制台 `/chair?id=`**：推進議程、對表決案「開始表決／停止並宣佈結果」（需求：會議主席控制台）。
-- **具名表決 `/vote?id=<motionId>`**：只允許會議開始後、且主席開放該表決案時投票；可投**同意／反對／棄權**，送出後不可更改。未開始前畫面鎖定，主席一開放即自動解鎖（需求：實時同步、Anti-Blackbox）。
-- **具名投票紀錄 `/ballots?meetingId=`**：完整列出每位應出席學生的投票狀態（同意／反對／棄權／未投票），支援**年級篩選**，全程公開透明並計入會議紀錄匯出（需求 4）。
+- **具名表決 `/vote?id=<motionId>`**：只允許會議開始後、且主席開放該表決案時投票；可投**同意／不同意**，送出後不可更改。未開始前畫面鎖定，主席一開放即自動解鎖（需求：實時同步、Anti-Blackbox）。
+- **具名投票紀錄 `/ballots?meetingId=`**：完整列出每位應出席學生的投票狀態（同意／不同意／未投票），支援**年級篩選**，全程公開透明並計入會議紀錄匯出（需求 4）。
 - **大螢幕投放 `/display?id=`**：適合投影機的大字體即時輪播頁面，顯示當前議程、應到／實到人數、表決即時票數（需求 5）。
 - **簽到 `/checkin?id=`**：圓形簽到按鈕；幹部／工作人員額外看到**年級篩選**的簽到管理列表面板，可現場代簽到（需求 1d）。
 - **管理面板 `/panel`（僅 admin）**：匯出／匯入全部會議紀錄（含議程、議案、具名票）、BGM、API 金鑰。
@@ -24,7 +24,7 @@ API key 於管理面板建立（只顯示一次，DB 只存 SHA-256 雜湊）。
 | `POST` | `/api/v1/meetings` | 建立會議（詳見下方） |
 | `GET` | `/api/v1/meetings/:id` | 會議資訊（含 `agenda`、議案、參與人、紀錄） |
 | `GET` | `/api/v1/meetings/:id/checkins` | 已簽到／未簽到清單 |
-| `GET` | `/api/v1/votes/:motionId/results` | 表決結果（motion 的同意／反對／棄權人數與門檻判定） |
+| `GET` | `/api/v1/votes/:motionId/results` | 表決結果（motion 的同意／不同意人數與門檻判定） |
 | `GET` | `/api/live/meeting/:id` | 大螢幕／投票輪詢用的即時會議狀態（議程、票數） |
 
 ### 身分驗證（兩種方式擇一）
@@ -120,7 +120,7 @@ curl -X POST https://meeting.tschoolsu.org/api/v1/meetings \
 
 ## 資料庫
 
-Schema 由 `lib/db.ts` 冪等初始化（`CREATE TABLE IF NOT EXISTS`），涵蓋：`meetings`（含 `location`／`online_link`／`description`／`status`）、`participants`（含 `grade`）、`agenda_items`、`agenda_attachments`、`motions`（各自帶`門檻 threshold`與`status`）、`ballots`（具名 `agree`／`against`／`abstain`）、`notification_queue`（Email 派送佇列）、`meeting_notes`。本機建庫指令：
+Schema 由 `lib/db.ts` 冪等初始化（`CREATE TABLE IF NOT EXISTS`），涵蓋：`meetings`（含 `location`／`online_link`／`description`／`status`）、`participants`（含 `grade`）、`agenda_items`、`agenda_attachments`、`motions`（各自帶`門檻 threshold`與`status`）、`ballots`（具名 `agree`／`against`）、`notification_queue`（Email 派送佇列）、`meeting_notes`。本機建庫指令：
 
 ```bash
 sudo -u postgres psql -c "CREATE ROLE t_meeting WITH LOGIN PASSWORD '<隨機密碼>';"

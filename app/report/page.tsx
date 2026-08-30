@@ -35,7 +35,7 @@ export default async function ReportPage({
   const checkedCount = participants.filter((p) => p.checked_in).length;
 
   // 每個 motion：participantEmail -> 投票狀態（未投 → "未投票"）
-  const statusZh: Record<string, string> = { agree: "同意", against: "反對", abstain: "棄權" };
+  const statusZh: Record<string, string> = { agree: "同意", against: "不同意" };
   const ballotOf = (motionId: number, email: string): string => {
     const s = matrix?.votes[email]?.[String(motionId)];
     return s ? (statusZh[s] ?? s) : "未投票";
@@ -116,7 +116,7 @@ export default async function ReportPage({
                     <span className="meta">（{thLabel(m.threshold)}；{m.status === "open" ? "表決中" : m.status === "closed" ? "已結算" : "未開放"}）</span>
                   </p>
                   <p className="meta" style={{ margin: "2px 0 6px" }}>
-                    同意 {m.agree} / 反對 {m.against} / 棄權 {m.abstain}
+                    同意 {m.agree} / 不同意 {m.against}
                   </p>
                   <table>
                     <thead>

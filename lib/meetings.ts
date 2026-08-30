@@ -33,7 +33,7 @@ export interface Participant {
   checked_in_at: string | null;
 }
 
-export type VoteStatus = "agree" | "against" | "abstain";
+export type VoteStatus = "agree" | "against";
 
 // 表決案（一對多掛在某個議程項目下）
 export interface Motion {
@@ -50,7 +50,6 @@ export interface Motion {
 export interface MotionWithCount extends Motion {
   agree: number;
   against: number;
-  abstain: number;
 }
 
 export interface AgendaItem {
@@ -217,7 +216,6 @@ export async function getMeetingDetail(id: number): Promise<MeetingDetail | null
       ...m2,
       agree: count(m2.id, "agree"),
       against: count(m2.id, "against"),
-      abstain: count(m2.id, "abstain"),
     });
     motionByItem.set(m2.agenda_item_id, list);
   }

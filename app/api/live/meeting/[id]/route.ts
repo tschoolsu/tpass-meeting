@@ -33,7 +33,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
             status: m.status,
             agree: m.agree,
             against: m.against,
-            abstain: m.abstain,
             ballots,
           };
         }),
@@ -70,7 +69,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         status: m.status,
         agree: m.agree,
         against: m.against,
-        abstain: m.abstain,
       })),
     })),
   });

@@ -225,7 +225,6 @@ export async function getMotionFlow(motionId: number, email: string): Promise<Mo
       ...motion,
       agree: c("agree"),
       against: c("against"),
-      abstain: c("abstain"),
     },
     answered: mine.rows[0]?.vote_status as VoteStatus | null ?? null,
     isOpen: motion.status === "open",
@@ -284,7 +283,6 @@ export async function getMotionResults(motionId: number): Promise<{
   status: string;
   agree: number;
   against: number;
-  abstain: number;
   total: number;
   not_voted: number;
   ballots: { voter_email: string; vote_status: VoteStatus }[];
@@ -320,7 +318,6 @@ export async function getMotionResults(motionId: number): Promise<{
     status: motion.status,
     agree: count("agree"),
     against: count("against"),
-    abstain: count("abstain"),
     total: ballots.length,
     not_voted: notVoted.length,
     ballots,
@@ -334,7 +331,7 @@ export interface MeetingBallotMatrix {
   participants: { email: string; grade: string }[];
   motions: { id: number; title: string; threshold: string; status: string; position: number }[];
   votes: Record<string, Record<string, VoteStatus>>; // participantEmail -> motionId -> status
-  counts: Record<number, { agree: number; against: number; abstain: number }>;
+  counts: Record<number, { agree: number; against: number }>;
 }
 
 export async function getMeetingBallots(meetingId: number): Promise<MeetingBallotMatrix | null> {
@@ -363,7 +360,7 @@ export async function getMeetingBallots(meetingId: number): Promise<MeetingBallo
 
   const votes: MeetingBallotMatrix["votes"] = {};
   const counts: MeetingBallotMatrix["counts"] = {};
-  for (const m of mRows.rows) counts[m.id] = { agree: 0, against: 0, abstain: 0 };
+  for (const m of mRows.rows) counts[m.id] = { agree: 0, against: 0 };
 
   for (const b of bRows.rows) {
     if (!votes[b.voter_email]) votes[b.voter_email] = {};

@@ -53,7 +53,7 @@ export function LiveDisplay({ meetingId }: { meetingId: number }) {
                     const open = m.status === "open";
                     const closed = m.status === "closed";
                     const ballots = (m as { ballots?: { voter_email: string; vote_status: string }[] }).ballots ?? [];
-                    const zh: Record<string, string> = { agree: "同意", against: "反對", abstain: "棄權" };
+                    const zh: Record<string, string> = { agree: "同意", against: "不同意" };
                     return (
                       <div key={m.id} className="rounded-3xl border-4 border-foreground bg-tone-bg p-6">
                         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -67,18 +67,14 @@ export function LiveDisplay({ meetingId }: { meetingId: number }) {
                           </span>
                         </div>
                         {open || closed ? (
-                          <div className="mt-5 grid grid-cols-3 gap-4 text-center">
+                          <div className="mt-5 grid grid-cols-2 gap-4 text-center">
                             <div className="rounded-2xl border-2 border-foreground bg-primary p-4">
                               <div className="font-mono text-5xl font-extrabold text-primary-foreground">{m.agree}</div>
                               <div className="mt-1 font-mono text-xl font-bold text-primary-foreground/80">同意</div>
                             </div>
                             <div className="rounded-2xl border-2 border-foreground bg-destructive p-4">
                               <div className="font-mono text-5xl font-extrabold text-background">{m.against}</div>
-                              <div className="mt-1 font-mono text-xl font-bold text-background/80">反對</div>
-                            </div>
-                            <div className="rounded-2xl border-2 border-foreground bg-accent p-4">
-                              <div className="font-mono text-5xl font-extrabold text-background">{m.abstain}</div>
-                              <div className="mt-1 font-mono text-xl font-bold text-background/80">棄權</div>
+                              <div className="mt-1 font-mono text-xl font-bold text-background/80">不同意</div>
                             </div>
                           </div>
                         ) : null}

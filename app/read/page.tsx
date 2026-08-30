@@ -208,8 +208,7 @@ export default async function ReadPage({
                         ) : null}
                         <div className="mt-2 flex gap-4 font-mono text-sm font-bold">
                           <span className="text-primary">同意 {m.agree}</span>
-                          <span className="text-destructive">反對 {m.against}</span>
-                          <span className="text-muted-foreground">棄權 {m.abstain}</span>
+                          <span className="text-destructive">不同意 {m.against}</span>
                         </div>
                       </div>
                     ))}

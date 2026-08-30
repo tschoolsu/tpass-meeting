@@ -9,15 +9,13 @@ export const dynamic = "force-dynamic";
 
 const STATUS_LABEL: Record<string, string> = {
   agree: "同意",
-  against: "反對",
-  abstain: "棄權",
+  against: "不同意",
   "": "未投票",
 };
 
 const STATUS_CLS: Record<string, string> = {
   agree: "text-primary",
   against: "text-destructive",
-  abstain: "text-muted-foreground",
   "": "text-muted-foreground/40",
 };
 
@@ -57,7 +55,7 @@ export default async function BallotsPage({
 
       <h1 className="mt-6 text-2xl font-extrabold">具名投票紀錄</h1>
       <p className="mt-1 text-sm font-medium text-muted-foreground">
-        {meeting.title} · 每位應出席學生的投票狀態（同意／反對／棄權／未投票）
+        {meeting.title} · 每位應出席學生的投票狀態（同意／不同意／未投票）
       </p>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -93,7 +91,7 @@ export default async function BallotsPage({
                   <th key={m.id} className="px-3 py-2 text-center font-extrabold" title={m.title}>
                     <span className="block max-w-40 truncate">{m.title}</span>
                     <span className="mt-0.5 block text-[10px] font-bold text-muted-foreground">
-                      同意 {matrix.counts[m.id]?.agree ?? 0} / 反對 {matrix.counts[m.id]?.against ?? 0} / 棄權 {matrix.counts[m.id]?.abstain ?? 0}
+                      同意 {matrix.counts[m.id]?.agree ?? 0} / 不同意 {matrix.counts[m.id]?.against ?? 0}
                     </span>
                   </th>
                 ))}

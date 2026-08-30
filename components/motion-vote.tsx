@@ -21,10 +21,10 @@ export function MotionVote({
   meetingId: number;
   motionId: number;
   initialStatus: string;
-  initialAnswered: "agree" | "against" | "abstain" | null;
+  initialAnswered: "agree" | "against" | null;
 }) {
   const { data } = useLiveState(meetingId);
-  const [answered, setAnswered] = useState<"agree" | "against" | "abstain" | null>(initialAnswered);
+  const [answered, setAnswered] = useState<"agree" | "against" | null>(initialAnswered);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,7 +35,7 @@ export function MotionVote({
   const isOpen = motion ? motion.status === "open" : initialStatus === "open";
   const answeredValue = answered;
 
-  async function cast(status: "agree" | "against" | "abstain") {
+  async function cast(status: "agree" | "against") {
     if (!isOpen || busy || answeredValue) return;
     setBusy(true);
     setError(null);
@@ -67,7 +67,7 @@ export function MotionVote({
           你已完成這項表決，無法更改。
         </p>
       ) : (
-        <div className="mt-8 grid grid-cols-3 gap-3">
+        <div className="mt-8 grid grid-cols-2 gap-3">
           <button
             type="button"
             onClick={() => cast("agree")}
@@ -82,15 +82,7 @@ export function MotionVote({
             disabled={busy}
             className="rounded-2xl border-2 border-foreground bg-destructive px-4 py-6 text-lg font-extrabold text-background shadow-[4px_4px_0_0_var(--color-foreground)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[6px_6px_0_0_var(--color-foreground)] active:translate-y-0 disabled:opacity-40"
           >
-            反對
-          </button>
-          <button
-            type="button"
-            onClick={() => cast("abstain")}
-            disabled={busy}
-            className="rounded-2xl border-2 border-foreground bg-accent px-4 py-6 text-lg font-extrabold text-background shadow-[4px_4px_0_0_var(--color-foreground)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[6px_6px_0_0_var(--color-foreground)] active:translate-y-0 disabled:opacity-40"
-          >
-            棄權
+            不同意
           </button>
         </div>
       )}

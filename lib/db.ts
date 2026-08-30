@@ -97,13 +97,13 @@ export async function initDb(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_motions_agenda ON motions (agenda_item_id, position);
 
-    -- 具名票（需求：同意／反對／棄權／未投票，公開透明）
+    -- 具名票（需求：同意／不同意／未投票，公開透明）
     CREATE TABLE IF NOT EXISTS ballots (
       id          SERIAL PRIMARY KEY,
       motion_id   INTEGER NOT NULL REFERENCES motions(id) ON DELETE CASCADE,
       voter_email TEXT NOT NULL,
-      -- 'agree' | 'against' | 'abstain'
-      vote_status TEXT NOT NULL CHECK (vote_status IN ('agree', 'against', 'abstain')),
+      -- 'agree' | 'against'
+      vote_status TEXT NOT NULL CHECK (vote_status IN ('agree', 'against')),
       created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
       UNIQUE (motion_id, voter_email)
     );
