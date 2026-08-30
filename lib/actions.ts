@@ -32,6 +32,8 @@ import {
   deleteAgendaItem,
   deleteMotion,
   moveAgendaItem,
+  nextAgendaItem,
+  setCurrentAgendaItem,
   startVote,
   stopVote,
   submitBallot,
@@ -245,6 +247,28 @@ export async function stopVoteAction(motionId: number, meetingId: number): Promi
   revalidatePath(`/chair?id=${meetingId}`);
   revalidatePath(`/display?id=${meetingId}`);
   return {};
+}
+
+export async function setCurrentAgendaItemAction(meetingId: number, agendaItemId: number): Promise<FormState> {
+  const session = await requireManager();
+  const ok = await canEditMeeting(meetingId, session);
+  if (!ok) return { error: "你沒有權限控制這份會議" };
+  await setCurrentAgendaItem(meetingId, agendaItemId);
+  revalidatePath(`/read?id=${meetingId}`);
+  revalidatePath(`/chair?id=${meetingId}`);
+  revalidatePath(`/display?id=${meetingId}`);
+  return {};
+}
+
+export async function nextAgendaItemAction(meetingId: number): Promise<FormState & { hasNext?: boolean }> {
+  const session = await requireManager();
+  const ok = await canEditMeeting(meetingId, session);
+  if (!ok) return { error: "你沒有權限控制這份會議" };
+  const hasNext = await nextAgendaItem(meetingId);
+  revalidatePath(`/read?id=${meetingId}`);
+  revalidatePath(`/chair?id=${meetingId}`);
+  revalidatePath(`/display?id=${meetingId}`);
+  return { hasNext };
 }
 
 // ---- 具名表決（需求 4） ----

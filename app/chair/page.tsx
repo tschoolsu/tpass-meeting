@@ -43,6 +43,7 @@ export default async function ChairPage({
       <div className="mt-6">
         <ChairControls
           meetingId={id}
+          currentId={detail.current?.id ?? null}
           agenda={agenda.map((a) => ({
             id: a.id,
             title: a.title,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { getMeetingDetail } from "@/lib/meetings";
+import { getMotionResults } from "@/lib/agenda";
 
 // GET /api/live/meeting/:id —— 供前端短輪詢的輕量實時資料（需求 3、5）。
 // 需登入；參與人與管理者皆可讀取。
@@ -17,6 +18,28 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const detail = await getMeetingDetail(meetingId);
   if (!detail) return NextResponse.json({ error: "找不到會議" }, { status: 404 });
 
+  // 現行議程各表決案：附上每人票（需求：投影端看得到每人投票意見）
+  const curMotions = detail.current
+    ? await Promise.all(
+        detail.current.motions.map(async (m) => {
+          const ballots =
+            m.status === "closed"
+              ? (await getMotionResults(m.id))?.ballots ?? []
+              : [];
+          return {
+            id: m.id,
+            title: m.title,
+            threshold: m.threshold,
+            status: m.status,
+            agree: m.agree,
+            against: m.against,
+            abstain: m.abstain,
+            ballots,
+          };
+        }),
+      )
+    : [];
+
   return NextResponse.json({
     meeting: {
       id: detail.meeting.id,
@@ -26,7 +49,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     },
     checked_in: detail.participants.filter((p) => p.checked_in).length,
     total: detail.participants.length,
-    current: detail.agenda[0] ?? null,
+    current: detail.current
+      ? {
+          id: detail.current.id,
+          position: detail.current.position,
+          title: detail.current.title,
+          description: detail.current.description,
+          motions: curMotions,
+        }
+      : null,
     agenda: detail.agenda.map((a) => ({
       id: a.id,
       position: a.position,

@@ -10,7 +10,7 @@ import {
   deleteMotionAction,
   moveAgendaItemAction,
 } from "@/lib/actions";
-import { Button, Card, Field, Input, Textarea, Tag } from "@/components/ui";
+import { Button, Card, Field, Input, Textarea } from "@/components/ui";
 import { THRESHOLD_LABEL, thLabel } from "@/lib/threshold";
 
 export function AgendaManager({
@@ -161,7 +161,13 @@ export function AgendaManager({
                 <ul className="flex flex-wrap gap-2">
                   {item.attachments.map((a) => (
                     <li key={a.id} className="flex items-center gap-1">
-                      <Tag className="bg-secondary">{a.filename}</Tag>
+                      <a
+                        href={`/api/agenda/attachments/${a.id}`}
+                        download
+                        className="inline-flex items-center gap-1 rounded-md border-2 border-foreground bg-secondary px-2 py-0.5 font-mono text-[11px] font-bold text-foreground shadow-[2px_2px_0_0_var(--color-foreground)] hover:bg-muted"
+                      >
+                        ⬇ {a.filename}
+                      </a>
                       <form
                         action={async () => {
                           await deleteAttachmentAction(a.id, meetingId);

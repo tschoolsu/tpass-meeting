@@ -179,11 +179,14 @@ export default async function ReadPage({
                 {a.attachments.length > 0 ? (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {a.attachments.map((att) => (
-                      <CopyLinkButton
+                      <a
                         key={att.id}
-                        url={`${selfUrl}/api/agenda/attachments/${att.id}`}
-                        label={`附件：${att.filename}`}
-                      />
+                        href={`${selfUrl}/api/agenda/attachments/${att.id}`}
+                        download
+                        className="inline-flex items-center gap-1.5 rounded-lg border-2 border-foreground bg-secondary px-2.5 py-1 text-xs font-bold shadow-[2px_2px_0_0_var(--color-foreground)] transition-colors hover:bg-muted"
+                      >
+                        ⬇ {att.filename}
+                      </a>
                     ))}
                   </div>
                 ) : null}

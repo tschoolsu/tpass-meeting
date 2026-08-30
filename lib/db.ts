@@ -42,6 +42,8 @@ export async function initDb(): Promise<void> {
     ALTER TABLE meetings ADD COLUMN IF NOT EXISTS online_link TEXT NOT NULL DEFAULT '';
     ALTER TABLE meetings ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '';
     ALTER TABLE meetings ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'draft';
+    -- 現行議程指標（需求：主席推進議程／大螢幕跟隨）
+    ALTER TABLE meetings ADD COLUMN IF NOT EXISTS current_agenda_item_id INTEGER;
     CREATE INDEX IF NOT EXISTS idx_meetings_date ON meetings (meeting_date DESC, id DESC);
 
     CREATE TABLE IF NOT EXISTS participants (

@@ -16,6 +16,7 @@ export interface Meeting {
   online_link: string;
   description: string;
   status: string;
+  current_agenda_item_id: number | null;
   created_at: string;
 }
 
@@ -88,11 +89,12 @@ export interface MeetingDetail {
   meeting: Meeting;
   participants: Participant[];
   agenda: AgendaItemFull[];
+  current: AgendaItemFull | null;
   notes: MeetingNote[];
 }
 
 const meetingCols =
-  "m.id, m.title, m.department, m.meeting_date::text AS meeting_date, m.starts_at, m.owner_sub, m.owner_email, m.owner_name, m.voting_enabled, m.location, m.online_link, m.description, m.status, m.created_at";
+  "m.id, m.title, m.department, m.meeting_date::text AS meeting_date, m.starts_at, m.owner_sub, m.owner_email, m.owner_name, m.voting_enabled, m.location, m.online_link, m.description, m.status, m.current_agenda_item_id, m.created_at";
 
 const participantCols = "p.id, p.meeting_id, p.email, p.grade, p.checked_in, p.checked_in_at";
 
@@ -139,10 +141,14 @@ export async function countMeetings(): Promise<number> {
   return rows[0]?.count ?? 0;
 }
 
-// 會議目前的「現行」議程：position 最小且為真者，即正在討論/展示的項目。
-export function currentAgendaItem(agenda: AgendaItemFull[]): AgendaItemFull | null {
-  if (agenda.length === 0) return null;
-  return agenda[0];
+// 會議目前的「現行」議程：以 DB current_agenda_item_id 為準，未設定時退回第一個。
+export function currentAgendaItem(
+  agenda: AgendaItemFull[],
+  currentId: number | null = null,
+): AgendaItemFull | null {
+  return (
+    (currentId != null ? agenda.find((a) => a.id === currentId) ?? null : null) ?? agenda[0] ?? null
+  );
 }
 
 export async function getMeetingDetail(id: number): Promise<MeetingDetail | null> {
@@ -229,10 +235,17 @@ export async function getMeetingDetail(id: number): Promise<MeetingDetail | null
     attachments: attachmentByItem.get(a.id) ?? [],
   }));
 
+  const current =
+    agenda.find((a) => a.id === meeting.current_agenda_item_id) ??
+    agenda.find((a) => a.motions.some((m) => m.status === "open")) ??
+    agenda[0] ??
+    null;
+
   return {
     meeting,
     participants: pRows.rows,
     agenda,
+    current,
     notes: nRows.rows,
   };
 }

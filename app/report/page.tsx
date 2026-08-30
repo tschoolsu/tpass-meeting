@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireAccess } from "@/lib/auth";
 import { getMeetingDetail } from "@/lib/meetings";
+import { getMeetingBallots } from "@/lib/agenda";
 import { formatTaipei } from "@/lib/time";
 import { thLabel } from "@/lib/threshold";
 import { PrintButton } from "@/components/print-button";
@@ -28,9 +29,17 @@ export default async function ReportPage({
 
   const detail = await getMeetingDetail(id);
   if (!detail) notFound();
+  const matrix = await getMeetingBallots(id);
 
   const { meeting, participants, agenda, notes } = detail;
   const checkedCount = participants.filter((p) => p.checked_in).length;
+
+  // 每個 motion：participantEmail -> 投票狀態（未投 → "未投票"）
+  const statusZh: Record<string, string> = { agree: "同意", against: "反對", abstain: "棄權" };
+  const ballotOf = (motionId: number, email: string): string => {
+    const s = matrix?.votes[email]?.[String(motionId)];
+    return s ? (statusZh[s] ?? s) : "未投票";
+  };
 
   return (
     <div className="report-doc">
@@ -99,26 +108,40 @@ export default async function ReportPage({
           <p className="agenda-title">#{a.position + 1}　{a.title}</p>
           {a.description ? <p className="agenda-desc">{a.description}</p> : null}
           {a.motions.length > 0 ? (
-            <table>
-              <thead>
-                <tr>
-                  <th>表決案</th>
-                  <th style={{ width: "22%" }}>可決門檻</th>
-                  <th style={{ width: "12%" }}>結果</th>
-                  <th style={{ width: "34%" }}>票數</th>
-                </tr>
-              </thead>
-              <tbody>
-                {a.motions.map((m) => (
-                  <tr key={m.id}>
-                    <td>{m.title}</td>
-                    <td>{thLabel(m.threshold)}</td>
-                    <td>{m.status === "open" ? "表決中" : m.status === "closed" ? "已結算" : "未開放"}</td>
-                    <td>同意 {m.agree} / 反對 {m.against} / 棄權 {m.abstain}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="space-y-3">
+              {a.motions.map((m) => (
+                <div key={m.id}>
+                  <p className="agenda-title" style={{ margin: "4px 0" }}>
+                    · {m.title}
+                    <span className="meta">（{thLabel(m.threshold)}；{m.status === "open" ? "表決中" : m.status === "closed" ? "已結算" : "未開放"}）</span>
+                  </p>
+                  <p className="meta" style={{ margin: "2px 0 6px" }}>
+                    同意 {m.agree} / 反對 {m.against} / 棄權 {m.abstain}
+                  </p>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th style={{ width: "30%" }}>信箱</th>
+                        <th style={{ width: "12%" }}>年級</th>
+                        <th>意見</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {participants.map((p) => (
+                        <tr key={`${m.id}-${p.email}`}>
+                          <td>{p.email}</td>
+                          <td>{p.grade || "—"}</td>
+                          <td>{ballotOf(m.id, p.email)}</td>
+                        </tr>
+                      ))}
+                      {participants.length === 0 ? (
+                        <tr><td colSpan={3} className="empty">無與會者。</td></tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
           ) : null}
           {a.attachments.length > 0 ? (
             <p className="meta" style={{ marginTop: "6px" }}>

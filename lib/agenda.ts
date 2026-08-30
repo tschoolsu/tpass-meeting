@@ -119,6 +119,34 @@ export async function deleteMotion(id: number): Promise<boolean> {
 
 // ---- 主席控制（需求：推進議程／開始表決／停止並宣告結果） ----
 
+// 指定某議程項目為「現行」，供主席推進與大螢幕展示。
+export async function setCurrentAgendaItem(meetingId: number, agendaItemId: number): Promise<boolean> {
+  const { rowCount } = await query(
+    `UPDATE meetings SET current_agenda_item_id = $1 WHERE id = $2`,
+    [agendaItemId, meetingId],
+  );
+  return rowCount > 0;
+}
+
+// 把現行議程移到下一筆；到最後一筆時回傳 false（不循環）。
+export async function nextAgendaItem(meetingId: number): Promise<boolean> {
+  const { rows } = await query<{ id: number; position: number }>(
+    `SELECT id, position FROM agenda_items WHERE meeting_id = $1 ORDER BY position ASC, id ASC`,
+    [meetingId],
+  );
+  if (rows.length === 0) return false;
+  const { rows: m } = await query<{ current_agenda_item_id: number | null }>(
+    `SELECT current_agenda_item_id FROM meetings WHERE id = $1`,
+    [meetingId],
+  );
+  const currentId = m[0]?.current_agenda_item_id ?? null;
+  const idx = rows.findIndex((r) => r.id === currentId);
+  const nextIdx = idx < 0 ? 0 : idx + 1;
+  if (nextIdx >= rows.length) return false;
+  await query(`UPDATE meetings SET current_agenda_item_id = $1 WHERE id = $2`, [rows[nextIdx].id, meetingId]);
+  return true;
+}
+
 // 開啟表決：把該 motion 設為 open，並同步把同議程其他 motion 關閉。
 export async function startVote(motionId: number): Promise<boolean> {
   const { rows } = await query<{ agenda_item_id: number }>(

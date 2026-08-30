@@ -105,6 +105,11 @@ export function MotionVote({
       <p className="mt-6">
         <BtnLink href={`/read?id=${meetingId}`}>← 返回會議</BtnLink>
       </p>
+      <p className="mt-3">
+        <BtnLink href={`/ballots?meetingId=${meetingId}`} variant="tone">
+          查看每人投票紀錄
+        </BtnLink>
+      </p>
     </Card>
   );
 }

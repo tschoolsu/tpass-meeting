@@ -52,6 +52,8 @@ export function LiveDisplay({ meetingId }: { meetingId: number }) {
                   {current.motions.map((m) => {
                     const open = m.status === "open";
                     const closed = m.status === "closed";
+                    const ballots = (m as { ballots?: { voter_email: string; vote_status: string }[] }).ballots ?? [];
+                    const zh: Record<string, string> = { agree: "同意", against: "反對", abstain: "棄權" };
                     return (
                       <div key={m.id} className="rounded-3xl border-4 border-foreground bg-tone-bg p-6">
                         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -78,6 +80,24 @@ export function LiveDisplay({ meetingId }: { meetingId: number }) {
                               <div className="font-mono text-5xl font-extrabold text-background">{m.abstain}</div>
                               <div className="mt-1 font-mono text-xl font-bold text-background/80">棄權</div>
                             </div>
+                          </div>
+                        ) : null}
+                        {closed && ballots.length > 0 ? (
+                          <div className="mt-6 max-h-64 overflow-y-auto rounded-2xl border-2 border-foreground bg-card p-4">
+                            <p className="font-mono text-lg font-extrabold text-muted-foreground">各人意見</p>
+                            <ul className="mt-3 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                              {ballots.map((b) => (
+                                <li
+                                  key={b.voter_email}
+                                  className="flex items-center justify-between rounded-lg border-2 border-foreground bg-tone-bg px-3 py-1.5"
+                                >
+                                  <span className="truncate text-lg font-bold">{b.voter_email}</span>
+                                  <span className="font-mono text-lg font-extrabold text-tone-text">
+                                    {zh[b.vote_status] ?? b.vote_status}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
                           </div>
                         ) : null}
                       </div>
