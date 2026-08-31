@@ -239,7 +239,7 @@ export async function startVoteAction(motionId: number, meetingId: number): Prom
   // 即時推播：表決開始 → VOTE_STARTED（帶上該表決案的選項內容）
   const motion = await getMotion(motionId);
   if (motion) {
-    broadcast(meetingId, "VOTE_STARTED", {
+    await broadcast(meetingId, "VOTE_STARTED", {
       meetingId,
       motion: {
         id: motion.id,
@@ -267,7 +267,7 @@ export async function stopVoteAction(motionId: number, meetingId: number): Promi
 
   const motion = await getMotion(motionId);
   if (motion) {
-    broadcast(meetingId, "VOTE_CLOSED", { meetingId, motionId, status: "closed" });
+    await broadcast(meetingId, "VOTE_CLOSED", { meetingId, motionId, status: "closed" });
   }
 
   revalidatePath(`/read?id=${meetingId}`);
