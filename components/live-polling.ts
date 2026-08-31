@@ -79,15 +79,18 @@ export function useLiveState(meetingId: number, enabled = true): {
         setData((prev) => (prev ? setMotionStatus(prev, motionId, "closed") : prev));
       });
       es.onerror = () => {
-        // 連線異常時降級到輪詢，仍保有即時更新能力
+        // SSE 異常：輪詢已在背景執行，仍保有即時更新能力
         sseOk = false;
-        if (!pollTimer) pollTimer = setInterval(snapshot, POLL_MS);
       };
     } catch {
       sseOk = false;
     }
 
-    if (!sseOk) pollTimer = setInterval(snapshot, POLL_MS);
+    // 無論 SSE 是否正常，都開輪詢作為「保證可靠」的主同步管道：
+    // REST snapshot（/api/live/meeting/:id）是唯一事實來源，已實測穩定。
+    // SSE 只是加速；輪詢確保即使 SSE 斷線/收不到，狀態仍自動更新。
+    pollTimer = setInterval(snapshot, POLL_MS);
+    if (sseOk) snapshot();
 
     return () => {
       cancelled = true;
