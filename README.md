@@ -10,7 +10,7 @@
 - **主席控制台 `/chair?id=`**：推進議程、對表決案「開始表決／停止並宣佈結果」（需求：會議主席控制台）。
 - **具名表決 `/vote?id=<motionId>`**：只允許會議開始後、且主席開放該表決案時投票；可投**同意／不同意**，送出後不可更改。未開始前畫面鎖定，主席一開放即自動解鎖（需求：實時同步、Anti-Blackbox）。
 - **具名投票紀錄 `/ballots?meetingId=`**：完整列出每位應出席學生的投票狀態（同意／不同意／未投票），支援**年級篩選**，全程公開透明並計入會議紀錄匯出（需求 4）。
-- **大螢幕投放 `/display?id=`**：適合投影機的大字體即時輪播頁面，顯示當前議程、應到／實到人數、表決即時票數（需求 5）。
+- **大螢幕投放 `/display?id=`**：適合投影機的大字體即時頁面，顯示當前議程、應到／實到人數、表決即時票數（需求 5）。前端以 **SSE**（`/api/live/meeting/:id/stream`）訂閱，主席一「開啟表決」即收到 `VOTE_STARTED` 事件自動渲染，無需手動重整；SSE 失效時自動降級為輪詢。
 - **簽到 `/checkin?id=`**：圓形簽到按鈕；幹部／工作人員額外看到**年級篩選**的簽到管理列表面板，可現場代簽到（需求 1d）。
 - **管理面板 `/panel`（僅 admin）**：匯出／匯入全部會議紀錄（含議程、議案、具名票）、BGM、API 金鑰。
 - **Email 通知**：發布會議後自動對所有受邀人寄送通知（含時間、地點、線上連結與會議連結），經背景佇列派送並自動重試（需求 6）。
@@ -26,6 +26,9 @@ API key 於管理面板建立（只顯示一次，DB 只存 SHA-256 雜湊）。
 | `GET` | `/api/v1/meetings/:id/checkins` | 已簽到／未簽到清單 |
 | `GET` | `/api/v1/votes/:motionId/results` | 表決結果（motion 的同意／不同意人數與門檻判定） |
 | `GET` | `/api/live/meeting/:id` | 大螢幕／投票輪詢用的即時會議狀態（議程、票數） |
+| `GET` | `/api/live/meeting/:id/stream` | **SSE** 即時推播（登入後訂閱）：`VOTE_STARTED`／`VOTE_CLOSED`／`heartbeat`／`connected` |
+
+> **部署注意（SSE／nginx）**：此 SSE 端點必須關閉 **nginx proxy buffering**，否則事件會被緩衝、要連線中斷才 flush（使用者只好手動 F5）。nginx 對應 `location` 需設 `proxy_buffering off;` 並拉長 `proxy_read_timeout`（見伺服器 `/etc/nginx/sites-available/meeting`）。
 
 ### 身分驗證（兩種方式擇一）
 
