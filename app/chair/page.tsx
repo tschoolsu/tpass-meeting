@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { isAdmin, requireManager } from "@/lib/auth";
 import { getMeetingDetail } from "@/lib/meetings";
 import { ChairControls } from "@/components/chair-controls";
+import { LiveAutoRefresh } from "@/components/live-auto-refresh";
 import { Card, Tag } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,7 @@ export default async function ChairPage({
 
   return (
     <div className="mx-auto max-w-3xl">
+      <LiveAutoRefresh meetingId={id} />
       <Link
         href={`/read?id=${id}`}
         className="inline-flex items-center gap-1.5 rounded-xl border-2 border-foreground bg-card px-3.5 py-2 text-sm font-bold shadow-[3px_3px_0_0_var(--color-foreground)]"

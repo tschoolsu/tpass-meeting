@@ -12,6 +12,7 @@ import { BgmPlayer } from "@/components/bgm-player";
 import { AgendaManager } from "@/components/agenda-manager";
 import { thLabel } from "@/lib/threshold";
 import { ParticipantBulk } from "@/components/participant-bulk";
+import { LiveAutoRefresh } from "@/components/live-auto-refresh";
 import { BtnLink, Card, Tag } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +56,7 @@ export default async function ReadPage({
 
   return (
     <div className="mx-auto max-w-4xl">
+      <LiveAutoRefresh meetingId={id} />
       {bgm ? <BgmPlayer /> : null}
       <Link
         href="/"
