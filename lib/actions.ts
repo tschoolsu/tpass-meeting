@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   isAdmin,
-  isModerator,
   requireAccess,
   requireAdmin,
   requireManager,
@@ -14,7 +13,9 @@ import { createApiKey, deleteApiKey } from "@/lib/api-keys";
 import { importAll } from "@/lib/backup";
 import { saveBgm, clearBgm, MAX_BGM_BYTES } from "@/lib/bgm";
 import {
+  addMeetingEditor,
   addNote,
+  canWriteNotes,
   createMeeting,
   deleteMeeting,
   getMeeting,
@@ -31,6 +32,7 @@ import {
   addAttachment,
   deleteAgendaItem,
   deleteMotion,
+  getMotion,
   moveAgendaItem,
   nextAgendaItem,
   setCurrentAgendaItem,
@@ -40,6 +42,7 @@ import {
   updateAgendaItem,
   updateMotion,
 } from "@/lib/agenda";
+import { broadcast } from "@/lib/stream";
 import {
   saveAttachment,
   deleteAttachmentFile,
@@ -232,6 +235,24 @@ export async function startVoteAction(motionId: number, meetingId: number): Prom
   const ok = await canEditMeeting(meetingId, session);
   if (!ok) return { error: "你沒有權限控制這份會議" };
   await startVote(motionId);
+
+  // 即時推播：表決開始 → VOTE_STARTED（帶上該表決案的選項內容）
+  const motion = await getMotion(motionId);
+  if (motion) {
+    broadcast(meetingId, "VOTE_STARTED", {
+      meetingId,
+      motion: {
+        id: motion.id,
+        agenda_item_id: motion.agenda_item_id,
+        title: motion.title,
+        threshold: motion.threshold,
+        status: "open",
+        agree: 0,
+        against: 0,
+      },
+    });
+  }
+
   revalidatePath(`/read?id=${meetingId}`);
   revalidatePath(`/chair?id=${meetingId}`);
   revalidatePath(`/display?id=${meetingId}`);
@@ -243,6 +264,12 @@ export async function stopVoteAction(motionId: number, meetingId: number): Promi
   const ok = await canEditMeeting(meetingId, session);
   if (!ok) return { error: "你沒有權限控制這份會議" };
   await stopVote(motionId);
+
+  const motion = await getMotion(motionId);
+  if (motion) {
+    broadcast(meetingId, "VOTE_CLOSED", { meetingId, motionId, status: "closed" });
+  }
+
   revalidatePath(`/read?id=${meetingId}`);
   revalidatePath(`/chair?id=${meetingId}`);
   revalidatePath(`/display?id=${meetingId}`);
@@ -386,11 +413,25 @@ export async function noteAction(meetingId: number, body: string): Promise<FormS
   const detail = await getMeetingDetail(meetingId);
   if (!detail) return { error: "找不到這份會議" };
 
-  const canNote =
-    isAdmin(session) || isModerator(session) || (await isParticipant(meetingId, session.email));
-  if (!canNote) return { error: "你沒有權限新增紀錄" };
+  // 需求：僅創建者（或 admin）與被明確授權的協作者可新增會議記錄
+  const canNote = await canWriteNotes(detail.meeting, session, isAdmin(session));
+  if (!canNote) return { error: "你沒有權限新增紀錄（僅會議創建者與被授權成員可操作）" };
 
-  await addNote(meetingId, { email: session.email, name: session.name }, text);
+  await addNote(meetingId, { sub: session.sub, email: session.email, name: session.name }, text);
+  revalidatePath(`/read?id=${meetingId}`);
+  return {};
+}
+
+// 授權某人成為該會議的「可寫記錄」協作者（僅創建者或 admin）。
+export async function addNoteEditorAction(meetingId: number, email: string): Promise<FormState> {
+  const session = await requireManager();
+  const meeting = await getMeeting(meetingId);
+  if (!meeting) return { error: "找不到這份會議" };
+  if (!(isAdmin(session) || meeting.owner_sub === session.sub))
+    return { error: "只有會議創建者或管理員可授權他人新增記錄" };
+  if (!email.trim() || !email.includes("@")) return { error: "請提供有效的信箱" };
+
+  await addMeetingEditor(meetingId, email.trim(), session.email);
   revalidatePath(`/read?id=${meetingId}`);
   return {};
 }

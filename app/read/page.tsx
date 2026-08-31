@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isAdmin, isModerator, requireAccess } from "@/lib/auth";
-import { getMeetingDetail } from "@/lib/meetings";
+import { canWriteNotes, getMeetingDetail } from "@/lib/meetings";
 import { formatTaipei, isStarted } from "@/lib/time";
 import { hasBgm } from "@/lib/bgm";
 import { liveUrl } from "@/lib/urls";
@@ -41,6 +41,8 @@ export default async function ReadPage({
   const canEdit = isAdminUser || meeting.owner_sub === session.sub;
   const isManager = isAdminUser || isModerator(session);
   const isMeParticipant = participants.some((p) => p.email === session.email);
+  // 會議紀錄權限：僅創建者（or admin）與被授權協作者可新增/編輯（需求）
+  const canNote = await canWriteNotes(meeting, session, isAdminUser);
 
   const myCheckin = participants.find((p) => p.email === session.email)?.checked_in ?? false;
   const notCheckedIn = participants.filter((p) => !p.checked_in);
@@ -308,7 +310,7 @@ export default async function ReadPage({
         </div>
 
         <div className="mt-5">
-          <NoteBar meetingId={id} canNote={isAdminUser || isModerator(session) || isMeParticipant} />
+          <NoteBar meetingId={id} canNote={canNote} />
         </div>
       </section>
     </div>

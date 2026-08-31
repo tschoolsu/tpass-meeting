@@ -276,11 +276,50 @@ export async function setCheckIn(meetingId: number, email: string): Promise<"ok"
   return invited ? "already" : "not-invited";
 }
 
-export async function addNote(meetingId: number, author: { email: string; name: string }, body: string): Promise<void> {
+export async function addNote(
+  meetingId: number,
+  author: { sub?: string; email: string; name: string },
+  body: string,
+): Promise<void> {
   await query(
-    `INSERT INTO meeting_notes (meeting_id, author_email, author_name, body)
-     VALUES ($1, $2, $3, $4)`,
-    [meetingId, author.email, author.name, body],
+    `INSERT INTO meeting_notes (meeting_id, author_email, author_name, author_sub, body)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [meetingId, author.email, author.name, author.sub ?? null, body],
+  );
+}
+
+// ---- 會議記錄權限（需求：Creator + Authorized Member 才可新增/編輯） ----
+
+// 是否為該會議的「可寫記錄」人員：admin 或 創建者 或 被授權協作者。
+export async function canWriteNotes(
+  meeting: Pick<Meeting, "owner_sub" | "id">,
+  session: { sub: string; email: string },
+  isAdminUser: boolean,
+): Promise<boolean> {
+  if (isAdminUser || meeting.owner_sub === session.sub) return true;
+  return isMeetingEditor(meeting.id, session.email);
+}
+
+// 是否為被明確授權的協作者。
+export async function isMeetingEditor(meetingId: number, email: string): Promise<boolean> {
+  const { rows } = await query<{ email: string }>(
+    `SELECT email FROM meeting_editors WHERE meeting_id = $1 AND email = $2`,
+    [meetingId, email.toLowerCase()],
+  );
+  return rows.length > 0;
+}
+
+// 授權某人成為該會議的「可寫記錄」協作者（冪等）。
+export async function addMeetingEditor(
+  meetingId: number,
+  email: string,
+  grantedBy: string,
+): Promise<void> {
+  await query(
+    `INSERT INTO meeting_editors (meeting_id, email, granted_by)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (meeting_id, email) DO NOTHING`,
+    [meetingId, email.toLowerCase(), grantedBy],
   );
 }
 

@@ -118,6 +118,19 @@ export async function initDb(): Promise<void> {
       created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
     );
     CREATE INDEX IF NOT EXISTS idx_notes_meeting ON meeting_notes (meeting_id, id DESC);
+    -- 記錄建立者的 sub（需求：僅創建者／被授權成員可新增、編輯會議記錄）
+    ALTER TABLE meeting_notes ADD COLUMN IF NOT EXISTS author_sub TEXT;
+
+    -- 會議記錄「被授權可寫入」的協作者（需求：Creator + Authorized Member 才可新增記錄）
+    CREATE TABLE IF NOT EXISTS meeting_editors (
+      id          SERIAL PRIMARY KEY,
+      meeting_id  INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+      email       TEXT NOT NULL,
+      granted_by  TEXT NOT NULL,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (meeting_id, email)
+    );
+    CREATE INDEX IF NOT EXISTS idx_meeting_editors_meeting ON meeting_editors (meeting_id, email);
 
     -- Email 通知佇列（需求：自動寄送會議通知；支援失敗重試）
     CREATE TABLE IF NOT EXISTS notification_queue (

@@ -13,7 +13,7 @@ export function NoteBar({ meetingId, canNote }: { meetingId: number; canNote: bo
   if (!canNote) {
     return (
       <p className="rounded-xl border-2 border-foreground bg-secondary px-4 py-3 text-sm font-medium text-muted-foreground">
-        只有受邀的參與人才能新增會議紀錄。
+        只有會議創建者與被授權成員可新增/編輯會議記錄。
       </p>
     );
   }
