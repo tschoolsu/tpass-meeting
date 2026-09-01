@@ -149,7 +149,7 @@ export async function setMeetingStatusAction(id: number, status: string): Promis
 async function hasOpenMotion(meetingId: number): Promise<boolean> {
   const { rows } = await query<{ n: number }>(
     `SELECT COUNT(*)::int AS n FROM motions m JOIN agenda_items a ON a.id = m.agenda_item_id
-      WHERE a.meeting_id = $1 AND m.status = open`,
+      WHERE a.meeting_id = $1 AND m.status = 'open'`,
     [meetingId],
   );
   return (rows[0]?.n ?? 0) > 0;
