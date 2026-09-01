@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
-import { getSession } from "@/lib/auth";
+import { getSession, isModerator } from "@/lib/auth";
 import { subscribe } from "@/lib/stream";
-import { getMeeting } from "@/lib/meetings";
+import { canViewMeeting, getMeeting, isParticipant } from "@/lib/meetings";
 
 // GET /api/live/meeting/:id/stream —— Server-Sent Events。
 // 只送兩種事件：CHANGED（這場會議有東西變了，client 去重抓快照）與 heartbeat。
@@ -14,10 +14,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!session) return new Response("未登入", { status: 401 });
 
   const { id: raw } = await params;
-  if (!/^\d+$/.test(raw)) return new Response("id 格式不正確", { status: 400 });
+  if (!/^\d{1,9}$/.test(raw)) return new Response("id 格式不正確", { status: 400 });
   const meetingId = Number(raw);
 
-  if (!(await getMeeting(meetingId))) return new Response("找不到會議", { status: 404 });
+  const meeting = await getMeeting(meetingId);
+  if (!meeting) return new Response("找不到會議", { status: 404 });
+
+  // SEC-001：非管理員／非參與人不可訂閱即時推播。
+  if (!canViewMeeting(meeting, session, isModerator(session), await isParticipant(meetingId, session.email))) {
+    return new Response("找不到會議", { status: 404 });
+  }
 
   let controller!: ReadableStreamDefaultController<Uint8Array>;
   const stream = new ReadableStream<Uint8Array>({

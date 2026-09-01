@@ -17,7 +17,7 @@ export default async function CreatePage({
 }) {
   const sp = await searchParams;
   const rawId = Array.isArray(sp.id) ? sp.id[0] : sp.id;
-  if (rawId && /^\d+$/.test(rawId)) redirect(`/manage?id=${rawId}`);
+  if (rawId && /^\d{1,9}$/.test(rawId)) redirect(`/manage?id=${rawId}`);
 
   const session = await requireAccess("/create");
   if (!canStudentCreate(session)) redirect("/");

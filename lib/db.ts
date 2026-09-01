@@ -5,11 +5,19 @@ import { serviceConfig } from "@/config/service";
 // 單一連線池，全站共用。連線字串必填（config/service.ts 缺了會直接 throw）。
 // timezone 以 startup parameter 在連線時設定，避免 connect handler 多發一筆
 // SET timezone 查詢而觸發 pg 的 DeprecationWarning（「client 已在執行查詢」）。
+//
+// C-1 / H-1：連線池調校——
+//   1. max 由 10 調到 25：getMeetingDetail 已併成 3 條查詢（單一 request 不再同時吃 7 條連線），
+//      但多人同時在線時 10 條仍太低。
+//   2. connectionTimeoutMillis / query_timeout / statement_timeout：依賴變慢時要有明確上限，
+//      而不是「無限排隊」把 request 全部卡在 pool 上拖垮整台服務。
 const pool = new Pool({
   connectionString: serviceConfig.postgresUrl,
-  max: 10,
+  max: 25,
   idleTimeoutMillis: 30_000,
-  options: "-c timezone=Asia/Taipei",
+  connectionTimeoutMillis: 5_000,
+  query_timeout: 10_000,
+  options: "-c timezone=Asia/Taipei -c statement_timeout=10000",
 });
 
 let initPromise: Promise<void> | null = null;
@@ -169,6 +177,20 @@ async function createSchema(): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS idx_notification_queue_pending
       ON notification_queue (status, next_attempt_at);
+
+    -- LOGIC-001：移除既有重複通知，並建立 UNIQUE(meeting_id, email)，使
+    -- enqueueMeetingNotification 的 ON CONFLICT DO NOTHING 生效，避免重複發布重複寄信。
+    DELETE FROM notification_queue a
+      USING notification_queue b
+     WHERE a.id > b.id
+       AND a.meeting_id = b.meeting_id
+       AND a.email = b.email;
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'notification_queue_meeting_email_key') THEN
+        ALTER TABLE notification_queue ADD CONSTRAINT notification_queue_meeting_email_key UNIQUE (meeting_id, email);
+      END IF;
+    END $$;
 
     CREATE TABLE IF NOT EXISTS api_keys (
       id           SERIAL PRIMARY KEY,

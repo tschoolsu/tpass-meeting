@@ -2,10 +2,10 @@
 // 學生依 phase 拿到「簽到／表決／等待」其中之一，建立者拿到「管理這場會議」。
 // 管理工具一律在 /manage，這裡不放。
 import { notFound } from "next/navigation";
-import { isAdmin, requireAccess } from "@/lib/auth";
-import { canWriteNotes, getMeetingDetail } from "@/lib/meetings";
+import { isAdmin, isModerator, requireAccess } from "@/lib/auth";
+import { canViewMeeting, canWriteNotes, getMeetingDetail } from "@/lib/meetings";
 import { formatTaipei } from "@/lib/time";
-import { hasBgm } from "@/lib/bgm";
+import { bgmInfo } from "@/lib/bgm";
 import { authConfig } from "@/config/auth";
 import { thLabel } from "@/lib/threshold";
 import { displayName } from "@/lib/names";
@@ -26,18 +26,20 @@ export default async function ReadPage({
 }) {
   const sp = await searchParams;
   const rawId = Array.isArray(sp.id) ? sp.id[0] : sp.id;
-  if (!rawId || !/^\d+$/.test(rawId)) notFound();
+  if (!rawId || !/^\d{1,9}$/.test(rawId)) notFound();
   const id = Number(rawId);
 
   const session = await requireAccess(`/read?id=${id}`);
   const detail = await getMeetingDetail(id);
   if (!detail) notFound();
-  const bgm = await hasBgm();
+  const bgm = await bgmInfo();
 
   const { meeting, participants, agenda, notes } = detail;
   const isAdminUser = isAdmin(session);
   const canEdit = isAdminUser || meeting.owner_sub === session.sub;
   const me = participants.find((p) => p.email === session.email);
+  // SEC-001：一般學生僅能讀取自己受邀的會議；非參與人一律 404。
+  if (!canViewMeeting(meeting, session, isAdminUser || isModerator(session), me !== undefined)) notFound();
   // 協作者在這裡寫紀錄；建立者的 NoteBar 在工作台 ④，不重複放。
   const showNoteBar = !canEdit && (await canWriteNotes(meeting, session, isAdminUser));
 
@@ -58,7 +60,7 @@ export default async function ReadPage({
   return (
     <div className="mx-auto max-w-4xl">
       <MeetingLive meetingId={id} />
-      {bgm ? <BgmPlayer /> : null}
+      {bgm ? <BgmPlayer version={bgm.updated_at} /> : null}
       <LinkButton href="/">← 返回首頁</LinkButton>
 
       <Card className="mt-6 shadow-[6px_6px_0_0_var(--color-foreground)]">
@@ -152,7 +154,7 @@ export default async function ReadPage({
                           <p className="text-sm font-extrabold">{m.title}</p>
                           <div className="flex items-center gap-2">
                             <Badge className="bg-secondary">{thLabel(m.threshold)}</Badge>
-                            <Badge className={m.status === "open" ? "bg-accent text-primary-foreground" : m.status === "closed" ? "bg-secondary" : "bg-card"}>
+                            <Badge className={m.status === "open" ? "bg-tone-green-badge text-tone-green-text" : m.status === "closed" ? "bg-secondary" : "bg-card"}>
                               {motionLabel(m.status)}
                             </Badge>
                           </div>

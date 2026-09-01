@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
-import { getMeetingDetail, type MotionWithCount } from "@/lib/meetings";
-import { getMotionResults, listMyVotedMotionIds } from "@/lib/agenda";
+import { getSession, isModerator } from "@/lib/auth";
+import { canViewMeeting, getMeetingDetail, type MotionWithCount } from "@/lib/meetings";
+import { listMyVotedMotionIds } from "@/lib/agenda";
 import { derivePhase } from "@/lib/meeting-status";
 import type { LiveMotion, LiveState } from "@/lib/live-state";
 
@@ -14,24 +14,21 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!session) return NextResponse.json({ error: "未登入" }, { status: 401 });
 
   const { id: raw } = await params;
-  if (!/^\d+$/.test(raw)) return NextResponse.json({ error: "id 格式不正確" }, { status: 400 });
+  if (!/^\d{1,9}$/.test(raw)) return NextResponse.json({ error: "id 格式不正確" }, { status: 400 });
   const meetingId = Number(raw);
 
   const detail = await getMeetingDetail(meetingId);
   if (!detail) return NextResponse.json({ error: "找不到會議" }, { status: 404 });
 
   const me = detail.participants.find((p) => p.email === session.email);
+  // SEC-001：非管理員／非參與人不可讀取即時資料。
+  if (!canViewMeeting(detail.meeting, session, isModerator(session), me !== undefined)) {
+    return NextResponse.json({ error: "找不到會議" }, { status: 404 });
+  }
   const votedIds = await listMyVotedMotionIds(meetingId, session.email);
 
-  // 現行議程各表決案：已結算的附上每人票（投屏「各人意見」用）
-  const curMotions = detail.current
-    ? await Promise.all(
-        detail.current.motions.map(async (m) => ({
-          ...toLive(m),
-          ballots: m.status === "closed" ? ((await getMotionResults(m.id))?.ballots ?? []) : [],
-        })),
-      )
-    : [];
+  // C-4：即時端點只回「計數」，已結算案的每人票由前端按需向 /api/live/meeting/:id/ballots 載入一次。
+  const curMotions = detail.current ? detail.current.motions.map(toLive) : [];
 
   const body: LiveState = {
     meeting: {

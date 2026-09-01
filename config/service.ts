@@ -46,4 +46,7 @@ export const serviceConfig = {
   // 是否允許一般學生（default）自主建立會議。
   allowStudentCreate: process.env.ALLOW_STUDENT_CREATE === "true",
   smtp: smtpFromEnv(),
+  // mail→姓名對照表 CSV 路徑（gitignore 的本地檔，不會進版控）。
+  // 未設定時預設 repo 根目錄的 name-map.csv。
+  nameMapCsv: process.env.MAIL_NAME_CSV?.trim() || "name-map.csv",
 } as const;

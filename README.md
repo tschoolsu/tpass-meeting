@@ -15,7 +15,7 @@
 - **大螢幕投放 `/display?id=`**：適合投影機的大字體即時頁面，顯示當前議程、應到／實到人數、表決即時票數與**通過／不通過／出席不足**（需求 5）。建立者／admin 登入時底部多一條可收合的主席控制列（開放／停止表決、上一案／下一案）。
 - **即時機制**：所有會議相關頁面（`/read`、`/manage`、`/chair`、`/checkin`、`/ballots`、`/vote`、`/display`）都掛 `MeetingLive`：**SSE**（`/api/live/meeting/:id/stream`）只送 `CHANGED` 訊號，收到就重抓快照（`/api/live/meeting/:id`，唯一事實來源），另固定 3 秒輪詢兜底。有 open 且自己（已簽到）還沒投的表決案就彈窗，換頁／重整不會吞掉。
 - **通過判定**（停止表決時寫入快照）：「出席 X」＝已簽到／應到 ≥ X，不足即無效；「同意 Y」分母＝已簽到人數（未投視同不同意），簡單多數＝同意 > 出席/2；`3/4` 只看同意/出席。因此**未簽到不能投票**。規則在 `lib/threshold.ts`，有測試。
-- **名字**：名單用 email 邀請，對方登入簽到／投票後用 JWT 的 `name` 回填；畫面一律顯示名字，還沒登入過的人才顯示 email。
+- **名字**（三層退回）：名單用 email 邀請；① 對方登入簽到／投票後用 JWT 的 `name` 回填 DB → ② 還沒登入的人查主機上 gitignore 的 `name-map.csv`（`mail,name`，路徑可用 `MAIL_NAME_CSV` 改；`lib/name-map.ts`）→ ③ 都沒有才顯示 email。填補在資料層（`getMeetingDetail` / `getMeetingBallots` / `getMotionResults` / `listMeetingEditors`），頁面一律用 `lib/names.ts` 的 `displayName`。
 - **簽到 `/checkin?id=`**：圓形簽到按鈕；建立者、admin 與被授權的協作者額外看到**年級篩選**的代簽到面板（需求 1d）。
 - **管理面板 `/panel`（僅 admin）**：部會清單、匯出／匯入全部會議紀錄（含議程、議案、具名票）、BGM、API 金鑰。
 - **Email 通知**：工作台按「發布並通知」時（只在第一次發布）對所有受邀人寄送通知（含時間、地點、線上連結與會議連結），經背景佇列派送並自動重試（需求 6）。未設定 SMTP 則略過。
@@ -37,14 +37,14 @@ API key 於管理面板建立（只顯示一次，DB 只存 SHA-256 雜湊）。
 
 ### 身分驗證（兩種方式擇一）
 
-用 `Authorization: Bearer <apikey>` 標頭，或網址帶 `?apikey=<apikey>`：
+用 `Authorization: Bearer <apikey>` 標頭，或（**僅當設定 `ALLOW_API_KEY_QUERY=true` 時**）網址帶 `?apikey=<apikey>`：
+
+> **安全建議**：金鑰不建議經由 URL query 傳遞（會洩漏至 access log、瀏覽器歷史與 Referer），正式環境請一律使用 `Authorization` 標頭；預設不啟用 query 方式。
 
 ```bash
-# 標頭方式
+# 標頭方式（建議）
 curl https://meeting.tschoolsu.org/api/v1/meetings/1 \
   -H "Authorization: Bearer tpm_xxxxxxxx"
-# 網址方式
-curl "https://meeting.tschoolsu.org/api/v1/meetings/1?apikey=tpm_xxxxxxxx"
 ```
 
 金鑰無效或遺漏時回傳 `401 {"error":"..."}`。

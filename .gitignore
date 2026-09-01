@@ -49,3 +49,6 @@ next-env.d.ts
 
 # uploads (BGM)
 /uploads
+
+# mail→name 對照表（本地維護，不進版控）
+/name-map.csv

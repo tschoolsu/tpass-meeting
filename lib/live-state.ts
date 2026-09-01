@@ -23,8 +23,6 @@ export interface LiveMotion {
   present_count: number | null;
   expected_count: number | null;
   result: MotionResult | null;
-  /** 只有 current 議程底下已結算的案才附（投屏「各人意見」用）。 */
-  ballots?: LiveBallot[];
 }
 
 export interface LiveAgendaItem {

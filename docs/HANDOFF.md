@@ -89,6 +89,8 @@ A＝建立者（moderator）、B＝受邀學生（default）、C＝另一個 mod
 
 手動劇本補三條：一個議程放兩案 → 開第 1 案停止 → **第 2 案能開**；B 停在 `/ballots` 時 A 開表決 → B 在該頁彈窗；`/display` 用 A 登入右下角有「主席控制 ▲」。
 
+**同日與部員的安全／效能加固（`a3e699a`…`be439c7`，26 顆）合併**：兩邊撞在即時層與名字。合併原則——安全（SEC-001 會議級授權、SEC-002 meeting-scoped 寫入、DINT-001 已簽到不可移除、ERR/HARD）、效能（C-1 三查詢、C-4 ballots 按需載入、SSE 健康時停輪詢＋watchdog、pool 25、rate limit、email worker）全留；即時事件統一成 `CHANGED`→重抓快照（他們的多事件局部合併與 `LiveStateProvider` 拿掉，改 `MeetingLive`）；名字＝DB 回填 → 他們的 `name-map.csv` → email 三層退回，補在資料層而非各頁面。
+
 ## 已知缺口（這輪不做）
 
 - **既有資料全是 `draft`**：部署後手動跑 `UPDATE meetings SET status='closed' WHERE status='draft' AND starts_at < now() - interval '1 day'`（把過期的舊草稿收掉，不然首頁一堆「籌備中」）。

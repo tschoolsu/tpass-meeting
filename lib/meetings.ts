@@ -3,6 +3,7 @@ import { pool, query } from "@/lib/db";
 import { parseTaipeiLocal } from "@/lib/time";
 import type { MotionResult } from "@/lib/threshold";
 import { deleteAttachmentFile } from "@/lib/attachment-store";
+import { fillNames } from "@/lib/name-map";
 
 export interface Meeting {
   id: number;
@@ -105,8 +106,6 @@ export interface MeetingDetail {
 const meetingCols =
   "m.id, m.title, m.department, m.meeting_date::text AS meeting_date, m.starts_at, m.owner_sub, m.owner_email, m.owner_name, m.voting_enabled, m.location, m.online_link, m.description, m.status, m.current_agenda_item_id, m.created_at";
 
-const participantCols = "p.id, p.meeting_id, p.email, p.name, p.grade, p.checked_in, p.checked_in_at";
-
 export const motionCols =
   "id, agenda_item_id, title, description, threshold, status, position, created_at, opened_at, closed_at, present_count, expected_count, result";
 
@@ -164,86 +163,128 @@ export function currentAgendaItem(
 }
 
 export async function getMeetingDetail(id: number): Promise<MeetingDetail | null> {
-  const meeting = await getMeeting(id);
-  if (!meeting) return null;
-
-  const [pRows, nRows, aRows, mRows, atRows, bRows] = await Promise.all([
-    query<Participant>(
-      `SELECT ${participantCols}
-         FROM participants p
-        WHERE p.meeting_id = $1
-        ORDER BY p.checked_in DESC, p.email ASC`,
+  // C-1：原本這函式用 Promise.all 平行跑 7 條查詢（1 個 request 同時吃 7 條 pool 連線），
+  // pool 一滿 request 就無限排隊。現在併成 3 條查詢：
+  //   1) meeting + participants + notes（json_agg 子查詢）
+  //   2) agenda_items + attachments（json_agg 子查詢）
+  //   3) motions + ballots 計數（一次 GROUP BY 掃完）
+  // 單一 request 最多只佔 1–2 條連線，多人同時使用時連線池壓力大幅下降。
+  const [detailRow, aRows] = await Promise.all([
+    query<{
+      id: number;
+      title: string;
+      department: string;
+      meeting_date: string;
+      starts_at: string;
+      owner_sub: string;
+      owner_email: string;
+      owner_name: string;
+      voting_enabled: boolean;
+      location: string;
+      online_link: string;
+      description: string;
+      status: string;
+      current_agenda_item_id: number | null;
+      created_at: string;
+      participants: unknown;
+      notes: unknown;
+    }>(
+      `SELECT ${meetingCols},
+              COALESCE((
+                SELECT json_agg(json_build_object(
+                  'id', p.id, 'meeting_id', p.meeting_id, 'email', p.email, 'name', p.name, 'grade', p.grade,
+                  'checked_in', p.checked_in, 'checked_in_at', p.checked_in_at)
+                  ORDER BY p.checked_in DESC, p.email ASC)
+                FROM participants p WHERE p.meeting_id = m.id
+              ), '[]'::json) AS participants,
+              COALESCE((
+                SELECT json_agg(json_build_object(
+                  'id', n.id, 'author_email', n.author_email, 'author_name', n.author_name,
+                  'body', n.body, 'created_at', n.created_at)
+                  ORDER BY n.id DESC)
+                FROM meeting_notes n WHERE n.meeting_id = m.id
+              ), '[]'::json) AS notes
+         FROM meetings m
+        WHERE m.id = $1`,
       [id],
     ),
-    query<MeetingNote>(
-      `SELECT id, author_email, author_name, body, created_at
-         FROM meeting_notes
-        WHERE meeting_id = $1
-        ORDER BY id DESC`,
-      [id],
-    ),
-    query<AgendaItem>(
-      `SELECT id, meeting_id, position, title, description, created_at
-         FROM agenda_items
-        WHERE meeting_id = $1
-        ORDER BY position ASC, id ASC`,
-      [id],
-    ),
-    query<Motion>(
-      `SELECT ${motionCols}
-         FROM motions
-        WHERE agenda_item_id IN (SELECT id FROM agenda_items WHERE meeting_id = $1)
-        ORDER BY position ASC, id ASC`,
-      [id],
-    ),
-    query<AgendaAttachment>(
-      `SELECT a.id, a.agenda_item_id, a.filename, a.mime, a.size, a.storage_path, a.uploaded_at
-         FROM agenda_attachments a
-         JOIN agenda_items ai ON ai.id = a.agenda_item_id
-        WHERE ai.meeting_id = $1
-        ORDER BY a.id ASC`,
-      [id],
-    ),
-    query<{ motion_id: number; vote_status: string; cnt: number }>(
-      `SELECT motion_id, vote_status, COUNT(*)::int AS cnt
-         FROM ballots
-        WHERE motion_id IN (
-          SELECT m.id FROM motions m
-          JOIN agenda_items ai ON ai.id = m.agenda_item_id
-          WHERE ai.meeting_id = $1
-        )
-        GROUP BY motion_id, vote_status`,
+    query<{
+      id: number;
+      meeting_id: number;
+      position: number;
+      title: string;
+      description: string;
+      created_at: string;
+      attachments: unknown;
+    }>(
+      `SELECT a.id, a.meeting_id, a.position, a.title, a.description, a.created_at,
+              COALESCE((
+                SELECT json_agg(json_build_object(
+                  'id', at2.id, 'agenda_item_id', at2.agenda_item_id, 'filename', at2.filename,
+                  'mime', at2.mime, 'size', at2.size, 'storage_path', at2.storage_path, 'uploaded_at', at2.uploaded_at)
+                  ORDER BY at2.id ASC)
+                FROM agenda_attachments at2 WHERE at2.agenda_item_id = a.id
+              ), '[]'::json) AS attachments
+         FROM agenda_items a
+        WHERE a.meeting_id = $1
+        ORDER BY a.position ASC, a.id ASC`,
       [id],
     ),
   ]);
 
-  const countByMotion = new Map<string, number>();
-  for (const b of bRows.rows) countByMotion.set(`${b.motion_id}:${b.vote_status}`, b.cnt);
-  const count = (motionId: number, status: VoteStatus) =>
-    countByMotion.get(`${motionId}:${status}`) ?? 0;
+  const row = detailRow.rows[0];
+  if (!row) return null;
+  const meeting: Meeting = {
+    id: row.id,
+    title: row.title,
+    department: row.department,
+    meeting_date: row.meeting_date,
+    starts_at: row.starts_at,
+    owner_sub: row.owner_sub,
+    owner_email: row.owner_email,
+    owner_name: row.owner_name,
+    voting_enabled: row.voting_enabled,
+    location: row.location,
+    online_link: row.online_link,
+    description: row.description,
+    status: row.status,
+    current_agenda_item_id: row.current_agenda_item_id,
+    created_at: row.created_at,
+  };
+  // 名字三層退回：DB name（登入回填）→ name-map.csv 對照表 → 空字串（顯示層再退回 email）
+  const participants = await fillNames((row.participants as Participant[]) ?? []);
+  const notes = (row.notes as MeetingNote[]) ?? [];
+
+  const mRows = await query<MotionWithCount>(
+    `SELECT mo.id, mo.agenda_item_id, mo.title, mo.description, mo.threshold, mo.status, mo.position, mo.created_at,
+            mo.opened_at, mo.closed_at, mo.present_count, mo.expected_count, mo.result,
+            COALESCE(COUNT(b.id) FILTER (WHERE b.vote_status = 'agree'), 0)::int AS agree,
+            COALESCE(COUNT(b.id) FILTER (WHERE b.vote_status = 'against'), 0)::int AS against
+       FROM motions mo
+       JOIN agenda_items a ON a.id = mo.agenda_item_id
+       LEFT JOIN ballots b ON b.motion_id = mo.id
+      WHERE a.meeting_id = $1
+      GROUP BY mo.id
+      ORDER BY mo.position ASC, mo.id ASC`,
+    [id],
+  );
 
   const motionByItem = new Map<number, MotionWithCount[]>();
   for (const m2 of mRows.rows) {
     const list = motionByItem.get(m2.agenda_item_id) ?? [];
-    list.push({
-      ...m2,
-      agree: count(m2.id, "agree"),
-      against: count(m2.id, "against"),
-    });
+    list.push(m2);
     motionByItem.set(m2.agenda_item_id, list);
   }
 
-  const attachmentByItem = new Map<number, AgendaAttachment[]>();
-  for (const a of atRows.rows) {
-    const list = attachmentByItem.get(a.agenda_item_id) ?? [];
-    list.push(a);
-    attachmentByItem.set(a.agenda_item_id, list);
-  }
-
   const agenda: AgendaItemFull[] = aRows.rows.map((a) => ({
-    ...a,
+    id: a.id,
+    meeting_id: a.meeting_id,
+    position: a.position,
+    title: a.title,
+    description: a.description,
+    created_at: a.created_at,
     motions: motionByItem.get(a.id) ?? [],
-    attachments: attachmentByItem.get(a.id) ?? [],
+    attachments: (a.attachments as AgendaAttachment[]) ?? [],
   }));
 
   const current =
@@ -254,10 +295,10 @@ export async function getMeetingDetail(id: number): Promise<MeetingDetail | null
 
   return {
     meeting,
-    participants: pRows.rows,
+    participants,
     agenda,
     current,
-    notes: nRows.rows,
+    notes,
   };
 }
 
@@ -267,6 +308,19 @@ export async function isParticipant(meetingId: number, email: string): Promise<b
     [meetingId, email],
   );
   return rows.length > 0;
+}
+
+// 讀取會議的權限判定（SEC-001）：管理員／moderator、會議建立者（以 sub 比對）、
+// 或受邀參與人方可讀取；一般學生僅能讀取自己受邀的會議。
+export function canViewMeeting(
+  meeting: Pick<Meeting, "owner_sub" | "id">,
+  session: { sub: string; email: string },
+  isManager: boolean,
+  isParticipantOfMeeting: boolean,
+): boolean {
+  if (isManager) return true;
+  if (meeting.owner_sub === session.sub) return true;
+  return isParticipantOfMeeting;
 }
 
 export async function getCheckInState(meetingId: number, email: string): Promise<boolean> {
@@ -433,12 +487,16 @@ export async function updateMeeting(
 }
 
 // 從名單移除一個人。只動 participants；他已投的票（ballots 以 email 記）不受影響。
-export async function removeParticipant(meetingId: number, email: string): Promise<boolean> {
-  const { rowCount } = await query(`DELETE FROM participants WHERE meeting_id = $1 AND email = $2`, [
-    meetingId,
-    email.toLowerCase(),
-  ]);
-  return rowCount > 0;
+// DINT-001：已簽到者保留出席紀錄，不可移除。
+export async function removeParticipant(meetingId: number, email: string): Promise<"removed" | "not-found" | "checked-in"> {
+  const { rows } = await query<{ checked_in: boolean }>(
+    `SELECT checked_in FROM participants WHERE meeting_id = $1 AND email = $2`,
+    [meetingId, email.toLowerCase()],
+  );
+  if (rows.length === 0) return "not-found";
+  if (rows[0].checked_in) return "checked-in";
+  await query(`DELETE FROM participants WHERE meeting_id = $1 AND email = $2`, [meetingId, email.toLowerCase()]);
+  return "removed";
 }
 
 export async function deleteMeeting(id: number, ownerSub: string, isAdmin: boolean): Promise<boolean> {
@@ -479,5 +537,5 @@ export async function listMeetingEditors(meetingId: number): Promise<MeetingEdit
     `SELECT email, name, granted_by FROM meeting_editors WHERE meeting_id = $1 ORDER BY email`,
     [meetingId],
   );
-  return rows;
+  return fillNames(rows);
 }

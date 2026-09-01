@@ -30,7 +30,8 @@ function Play() {
 }
 
 // 會議 BGM：自動撥放、可循迴；左下角圓形按鈕切換靜音。
-export function BgmPlayer() {
+// version 由 server 端帶 mtime，BGM 換檔時 URL 改變 → 瀏覽器自然重新下載（M-7）。
+export function BgmPlayer({ version }: { version: string }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -62,7 +63,7 @@ export function BgmPlayer() {
 
   return (
     <>
-      <audio ref={audioRef} src="/api/bgm" loop preload="auto" />
+      <audio ref={audioRef} src={`/api/bgm?v=${encodeURIComponent(version)}`} loop preload="auto" />
       <button
         type="button"
         onClick={toggle}

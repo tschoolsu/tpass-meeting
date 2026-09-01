@@ -34,20 +34,34 @@ export async function enqueueMeetingNotification(meetingId: number): Promise<voi
     `SELECT email FROM participants WHERE meeting_id = $1`,
     [meetingId],
   );
-  for (const p of rows) {
-    await query(
-      `INSERT INTO notification_queue (meeting_id, email, subject, body, status)
-       VALUES ($1, $2, $3, $4, 'pending')
-       ON CONFLICT DO NOTHING`,
-      [meetingId, p.email, subject, body],
-    );
-  }
+  if (rows.length === 0) return;
+
+  // H-2：single multi-row INSERT，不再逐筆（500 人就 500 次 RTT）。
+  const params: unknown[] = [];
+  const tuples = rows
+    .map((p, i) => {
+      const base = i * 4;
+      params.push(meetingId, p.email, subject, body);
+      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, 'pending')`;
+    })
+    .join(", ");
+  await query(
+    `INSERT INTO notification_queue (meeting_id, email, subject, body, status)
+     VALUES ${tuples}
+     ON CONFLICT DO NOTHING`,
+    params,
+  );
 }
 
-// 派送所有「待寄且已到重試時間」的郵件。供發布與手動/背景 task 呼叫。
+// SMTP 派送併發上限：避免一次把 SMTP server 打爆，也不會逐封串列等。
+const SMTP_CONCURRENCY = 5;
+
+// 派送所有「待寄且已到重試時間」的郵件。供發布與背景 worker 呼叫。
 export async function dispatchPendingEmails(): Promise<{ sent: number }> {
   const smtp = serviceConfig.smtp;
   if (!smtp) return { sent: 0 };
+
+  const { host, port, secure, user, pass, from } = smtp;
 
   const nodemailer = await import("nodemailer").catch(() => null);
   if (!nodemailer) return { sent: 0 }; // nodemailer 未安裝則略過
@@ -62,39 +76,49 @@ export async function dispatchPendingEmails(): Promise<{ sent: number }> {
   if (rows.length === 0) return { sent: 0 };
 
   const transporter = nodemailer.createTransport({
-    host: smtp.host,
-    port: smtp.port,
-    secure: smtp.secure,
-    auth: { user: smtp.user, pass: smtp.pass },
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+    // H-1：SMTP 不回應也要有明確上限，不要讓派送卡在無窮等待。
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 30_000,
   });
 
   let sent = 0;
-  for (const row of rows) {
-    try {
-      await transporter.sendMail({
-        from: smtp.from,
-        to: row.email,
-        subject: row.subject,
-        text: row.body,
-      });
-      await query(
-        `UPDATE notification_queue
-            SET status = 'sent', sent_at = now(), attempts = attempts + 1
-          WHERE id = $1`,
-        [row.id],
-      );
-      sent++;
-    } catch {
-      await query(
-        `UPDATE notification_queue
-            SET attempts = attempts + 1,
-                status = CASE WHEN attempts + 1 >= $2 THEN 'failed' ELSE 'pending' END,
-                next_attempt_at = now() + make_interval(secs => $3)
-          WHERE id = $1`,
-        [row.id, EMAIL_MAX_ATTEMPTS, RETRY_DELAY_MS / 1000],
-      );
+  let idx = 0;
+  async function worker() {
+    while (idx < rows.length) {
+      const row = rows[idx++];
+      try {
+        await transporter.sendMail({
+          from,
+          to: row.email,
+          subject: row.subject,
+          text: row.body,
+        });
+        await query(
+          `UPDATE notification_queue
+              SET status = 'sent', sent_at = now(), attempts = attempts + 1
+            WHERE id = $1`,
+          [row.id],
+        );
+        sent++;
+      } catch {
+        await query(
+          `UPDATE notification_queue
+              SET attempts = attempts + 1,
+                  status = CASE WHEN attempts + 1 >= $2 THEN 'failed' ELSE 'pending' END,
+                  next_attempt_at = now() + make_interval(secs => $3)
+            WHERE id = $1`,
+          [row.id, EMAIL_MAX_ATTEMPTS, RETRY_DELAY_MS / 1000],
+        );
+      }
     }
   }
+
+  await Promise.all(Array.from({ length: Math.min(SMTP_CONCURRENCY, rows.length) }, worker));
   return { sent };
 }
 
@@ -107,4 +131,16 @@ export async function notificationStats(meetingId: number) {
     [meetingId],
   );
   return rows;
+}
+
+// M-5：清理過期的 sent / failed 佇列紀錄，避免 notification_queue 無限增長。
+// 由背景 worker 每日呼叫一次。
+export async function purgeNotificationQueue(keepMs = 7 * 24 * 60 * 60 * 1000): Promise<number> {
+  const { rowCount } = await query(
+    `DELETE FROM notification_queue
+      WHERE status IN ('sent', 'failed')
+        AND created_at < now() - make_interval(secs => $1)`,
+    [keepMs / 1000],
+  );
+  return rowCount ?? 0;
 }

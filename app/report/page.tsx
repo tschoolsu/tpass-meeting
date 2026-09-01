@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
-import { requireAccess } from "@/lib/auth";
-import { getMeetingDetail } from "@/lib/meetings";
+import { isModerator, requireAccess } from "@/lib/auth";
+import { canViewMeeting, getMeetingDetail, isParticipant } from "@/lib/meetings";
 import { getMeetingBallots } from "@/lib/agenda";
 import { formatTaipei } from "@/lib/time";
 import { motionOutcome, RESULT_LABEL, thLabel } from "@/lib/threshold";
@@ -16,13 +16,17 @@ export default async function ReportPage({
 }) {
   const sp = await searchParams;
   const rawId = Array.isArray(sp.id) ? sp.id[0] : sp.id;
-  if (!rawId || !/^\d+$/.test(rawId)) notFound();
+  if (!rawId || !/^\d{1,9}$/.test(rawId)) notFound();
   const id = Number(rawId);
 
-  await requireAccess(`/report?id=${id}`);
+  const session = await requireAccess(`/report?id=${id}`);
 
   const detail = await getMeetingDetail(id);
   if (!detail) notFound();
+  // SEC-001：非管理員／非參與人不可查看他人會議的列印報告。
+  if (!canViewMeeting(detail.meeting, session, isModerator(session), await isParticipant(id, session.email))) {
+    notFound();
+  }
   const matrix = await getMeetingBallots(id);
 
   const { meeting, participants, agenda, notes } = detail;
