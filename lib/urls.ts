@@ -1,7 +1,6 @@
 import "server-only";
-
-const selfUrl = (): string => process.env.SERVICE_SELF_URL || "https://meeting.tschoolsu.org";
+import { authConfig } from "@/config/auth";
 
 export function liveUrl(meetingId: number): string {
-  return `${selfUrl()}/display?id=${meetingId}`;
+  return `${authConfig.selfUrl}/display?id=${meetingId}`;
 }

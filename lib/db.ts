@@ -1,12 +1,12 @@
 import "server-only";
 import { Pool } from "pg";
+import { serviceConfig } from "@/config/service";
 
-// 單一連線池，全站共用。環境變數缺省時使用本機開發預設值。
+// 單一連線池，全站共用。連線字串必填（config/service.ts 缺了會直接 throw）。
 // timezone 以 startup parameter 在連線時設定，避免 connect handler 多發一筆
 // SET timezone 查詢而觸發 pg 的 DeprecationWarning（「client 已在執行查詢」）。
 const pool = new Pool({
-  connectionString:
-    process.env.POSTGRES_URL || "postgresql://t_meeting@127.0.0.1:5432/t_meeting",
+  connectionString: serviceConfig.postgresUrl,
   max: 10,
   idleTimeoutMillis: 30_000,
   options: "-c timezone=Asia/Taipei",

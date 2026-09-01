@@ -1,12 +1,17 @@
+// 頁面／API 的登入與權限守門。驗章本體在 tpass-auth-js（見 config/auth.ts），
+// 這裡只是把套件的 session 與 permissions 轉成本服務習慣的 API 形狀。
 import "server-only";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { createRemoteJWKSet, jwtVerify } from "jose";
+import type { TPassClaims } from "tpass-auth-js";
+import { authConfig, tpass } from "@/config/auth";
+
+export type { TPassClaims };
 
 export type Role = "admin" | "moderator" | "default";
 export type Restriction = "none" | "warning" | "ban";
 
+// 本服務用的權限形狀：欄位全部必填（套件的 restriction / reason 是選填）。
 export interface PermissionEntry {
   read: boolean;
   role: Role;
@@ -14,62 +19,22 @@ export interface PermissionEntry {
   reason: string;
 }
 
-export interface TPassClaims {
-  sub: string;
-  email: string;
-  name: string;
-  permissions: Record<string, { read?: boolean; role?: string; restriction?: string; reason?: string }>;
-  exp: number;
-}
+// 同一個 request 內只驗一次章。
+export const getSession = cache((): Promise<TPassClaims | null> => tpass.getSession());
 
-const serviceId = () => process.env.TPASS_SERVICE_ID || "meeting";
-const issuer = () => process.env.JWT_ISSUER || "https://auth.tschoolsu.org";
-const portalUrl = () => process.env.PORTAL_URL || "https://portal.tschoolsu.org/";
-
-// 每次 request 只用一顆非同步 JWKS（jose 內部會快取公鑰並自動輪替）。
-const jwks = () => createRemoteJWKSet(new URL(process.env.AUTH_JWKS_URL || "https://auth.tschoolsu.org/.well-known/jwks.json"));
-
-export async function verifySession(token: string): Promise<TPassClaims | null> {
-  try {
-    const { payload } = await jwtVerify(token, jwks(), {
-      algorithms: ["EdDSA"],                       // 鐵則 1：鎖死演算法，防 alg confusion
-      issuer: issuer(),                            // 鐵則 2：核對簽發者
-      audience: `tpass:${serviceId()}`,            // 鐵則 3：核對受眾，避免跨服務冒用
-    });
-    return {
-      sub: String(payload.sub || ""),
-      email: String(payload.email || "").toLowerCase(),
-      name: String(payload.name || ""),
-      permissions: (payload.permissions as TPassClaims["permissions"]) ?? {},
-      exp: Number(payload.exp || 0),
-    };
-  } catch {
-    return null; // 驗證失敗一律視為未登入，不回傳詳細錯誤
-  }
-}
-
-export const getSession = cache(async (): Promise<TPassClaims | null> => {
-  const jar = await cookies();
-  const token = jar.get("tpass_token")?.value;
-  if (!token) return null;
-  return verifySession(token);
-});
-
-// 依 JWT permissions 決定權限。權限一律以「meeting」key 為準。
-// role 只在 admin / moderator 之間有意義；restriction 獨立於 role 判斷管制狀態。
+// 依 JWT permissions 決定權限。權限一律以本服務 id 為 key。
+// role 只認 admin / moderator，其餘視為 default；restriction 只認 warning / ban，其餘視為 none。
 export function getPermissionEntry(session: TPassClaims | null | undefined): PermissionEntry {
-  const entry = session?.permissions?.[serviceId()];
-  const roleRaw = entry?.role ?? "default";
-  const restrictionRaw = entry?.restriction ?? "none";
+  const perm = tpass.permOf(session);
   const role: Role =
-    roleRaw === "admin" || roleRaw === "moderator" ? roleRaw : "default";
+    perm.role === "admin" || perm.role === "moderator" ? perm.role : "default";
   const restriction: Restriction =
-    restrictionRaw === "warning" || restrictionRaw === "ban" ? restrictionRaw : "none";
+    perm.restriction === "warning" || perm.restriction === "ban" ? perm.restriction : "none";
   return {
-    read: entry?.read !== false,
+    read: perm.read !== false,
     role,
     restriction,
-    reason: entry?.reason ?? "",
+    reason: perm.reason ?? "",
   };
 }
 
@@ -82,35 +47,32 @@ export function isModerator(session: TPassClaims | null | undefined): boolean {
   return role === "moderator" || role === "admin";
 }
 
+// 登入回跳路徑可帶站內路徑，組成 authorize 入口（契約 v2）。
 export function loginUrlFor(returnPath = "/"): string {
-  const u = new URL(process.env.AUTH_AUTHORIZE_URL || "https://auth.tschoolsu.org/api/auth/authorize");
-  u.searchParams.set("service", serviceId());
-  u.searchParams.set("redirect_uri", `${process.env.SERVICE_SELF_URL || "http://localhost:3009"}/api/auth/callback`);
-  u.searchParams.set("next", returnPath);
-  return u.toString();
+  return tpass.loginUrl(returnPath);
 }
 
 // 頁面守門：未登入 → auth；ban → portal；read=false → denied。
 // 一般學生（default 非 warning）也可瀏覽，但僅能存取自己受邀的會議（需求：T-Pass 入口）。
 export async function requireAccess(returnPath = "/"): Promise<TPassClaims> {
   const session = await getSession();
-  if (!session) redirect(loginUrlFor(returnPath));
+  if (!session) redirect(tpass.loginUrl(returnPath));
   const perm = getPermissionEntry(session);
-  if (perm.restriction === "ban") redirect(portalUrl());
-  if (!perm.read) redirect(`${process.env.AUTH_DENIED_URL || "https://auth.tschoolsu.org/denied"}?service=${serviceId()}`);
+  if (perm.restriction === "ban") redirect(authConfig.portalUrl);
+  if (!perm.read) redirect(tpass.deniedUrl());
   return session;
 }
 
 // 建立／編輯／刪除會議需要 moderator 或 admin。
 export async function requireManager(returnPath = "/"): Promise<TPassClaims> {
   const session = await requireAccess(returnPath);
-  if (!isModerator(session)) redirect(portalUrl());
+  if (!isModerator(session)) redirect(authConfig.portalUrl);
   return session;
 }
 
 // 管理面板與進階管理功能只有 admin。
 export async function requireAdmin(returnPath = "/panel"): Promise<TPassClaims> {
   const session = await requireAccess(returnPath);
-  if (!isAdmin(session)) redirect(portalUrl());
+  if (!isAdmin(session)) redirect(authConfig.portalUrl);
   return session;
 }

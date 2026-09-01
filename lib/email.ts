@@ -1,16 +1,14 @@
 import "server-only";
 import { query } from "@/lib/db";
+import { authConfig } from "@/config/auth";
+import { serviceConfig } from "@/config/service";
 
 export const EMAIL_MAX_ATTEMPTS = 5;
 export const RETRY_DELAY_MS = 60_000; // 失敗後 1 分鐘再試
 
-function smtpConfigured(): boolean {
-  return Boolean(process.env.SMTP_HOST && process.env.SMTP_FROM);
-}
-
 // 建立「發布會議」通知：每個受邀參與人一筆 pending 佇列。
 export async function enqueueMeetingNotification(meetingId: number): Promise<void> {
-  if (!smtpConfigured()) return; // 未設定 SMTP 則略過（靜默不中斷建置）
+  if (!serviceConfig.smtp) return; // 未設定 SMTP 則略過（靜默不中斷建置）
 
   const meeting = await query<{ title: string; starts_at: string; location: string; online_link: string }>(
     `SELECT title, starts_at, location, online_link FROM meetings WHERE id = $1`,
@@ -19,8 +17,7 @@ export async function enqueueMeetingNotification(meetingId: number): Promise<voi
   const m = meeting.rows[0];
   if (!m) return;
 
-  const selfUrl = process.env.SERVICE_SELF_URL || "https://meeting.tschoolsu.org";
-  const meetingUrl = `${selfUrl}/read?id=${meetingId}`;
+  const meetingUrl = `${authConfig.selfUrl}/read?id=${meetingId}`;
   const subject = `[會議通知] ${m.title}`;
   const lines = [
     `你受邀參加會議「${m.title}」。`,
@@ -49,7 +46,8 @@ export async function enqueueMeetingNotification(meetingId: number): Promise<voi
 
 // 派送所有「待寄且已到重試時間」的郵件。供發布與手動/背景 task 呼叫。
 export async function dispatchPendingEmails(): Promise<{ sent: number }> {
-  if (!smtpConfigured()) return { sent: 0 };
+  const smtp = serviceConfig.smtp;
+  if (!smtp) return { sent: 0 };
 
   const nodemailer = await import("nodemailer").catch(() => null);
   if (!nodemailer) return { sent: 0 }; // nodemailer 未安裝則略過
@@ -64,20 +62,17 @@ export async function dispatchPendingEmails(): Promise<{ sent: number }> {
   if (rows.length === 0) return { sent: 0 };
 
   const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT) || 587,
-    secure: process.env.SMTP_SECURE === "true",
-    auth: {
-      user: process.env.SMTP_USER || "",
-      pass: process.env.SMTP_PASS || "",
-    },
+    host: smtp.host,
+    port: smtp.port,
+    secure: smtp.secure,
+    auth: { user: smtp.user, pass: smtp.pass },
   });
 
   let sent = 0;
   for (const row of rows) {
     try {
       await transporter.sendMail({
-        from: process.env.SMTP_FROM,
+        from: smtp.from,
         to: row.email,
         subject: row.subject,
         text: row.body,
