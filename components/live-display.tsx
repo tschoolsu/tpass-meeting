@@ -1,10 +1,51 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { useLiveStateContext } from "@/components/live-state";
 import { motionLabel } from "@/lib/meeting-status";
 
-export function LiveDisplay() {
+interface Ballot {
+  voter_email: string;
+  vote_status: string;
+}
+
+// C-4：即時資料只帶計數；已結算表決的「每人票」名單在這裡按需載入一次，
+// 不再讓每個 3 秒 poll 都把全量 ballots 序列化送給每個觀看者。
+export function LiveDisplay({ meetingId }: { meetingId: number }) {
   const { data, error } = useLiveStateContext();
+  const [ballots, setBallots] = useState<Record<number, Ballot[]>>({});
+  const ballotsRef = useRef<Record<number, Ballot[]>>({});
+  const fetchedRef = useRef<Set<number>>(new Set());
+  const inFlightRef = useRef<Set<number>>(new Set());
+
+  const current = data?.current ?? null;
+
+  // 已結算 motion 只載一次 ballots；用 ref 追蹤已載/載入中，避免 setState 迴圈。
+  useEffect(() => {
+    if (!current) return;
+    const toFetch = current.motions.filter(
+      (m) => m.status === "closed" && !fetchedRef.current.has(m.id) && !inFlightRef.current.has(m.id),
+    );
+    if (toFetch.length === 0) return;
+    for (const m of toFetch) {
+      inFlightRef.current.add(m.id);
+      fetch(`/api/live/meeting/${meetingId}/ballots?motionId=${m.id}`, { cache: "no-store" })
+        .then((r) => (r.ok ? (r.json() as Promise<{ ballots: Ballot[] }>) : null))
+        .then((b) => {
+          if (b?.ballots) {
+            ballotsRef.current[m.id] = b.ballots;
+            fetchedRef.current.add(m.id);
+            setBallots({ ...ballotsRef.current });
+          }
+        })
+        .catch(() => {
+          /* 等下次狀態變化再重試 */
+        })
+        .finally(() => {
+          inFlightRef.current.delete(m.id);
+        });
+    }
+  }, [current, meetingId]);
 
   if (error) {
     return (
@@ -22,7 +63,6 @@ export function LiveDisplay() {
     );
   }
 
-  const current = data.current;
   const checked = data.checked_in;
   const total = data.total;
 
@@ -53,7 +93,7 @@ export function LiveDisplay() {
                   {current.motions.map((m) => {
                     const open = m.status === "open";
                     const closed = m.status === "closed";
-                    const ballots = (m as { ballots?: { voter_email: string; vote_status: string }[] }).ballots ?? [];
+                    const motionBallots = closed ? (ballots[m.id] ?? []) : [];
                     const zh: Record<string, string> = { agree: "同意", against: "不同意" };
                     return (
                       <div key={m.id} className="rounded-2xl border-4 border-foreground bg-tone-green-bg p-6">
@@ -79,11 +119,11 @@ export function LiveDisplay() {
                             </div>
                           </div>
                         ) : null}
-                        {closed && ballots.length > 0 ? (
+                        {closed && motionBallots.length > 0 ? (
                           <div className="mt-6 max-h-64 overflow-y-auto rounded-2xl border-2 border-foreground bg-card p-4">
                             <p className="font-mono text-lg font-extrabold text-muted-foreground">各人意見</p>
                             <ul className="mt-3 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                              {ballots.map((b) => (
+                              {motionBallots.map((b) => (
                                 <li
                                   key={b.voter_email}
                                   className="flex items-center justify-between rounded-lg border-2 border-foreground bg-tone-green-bg px-3 py-1.5"

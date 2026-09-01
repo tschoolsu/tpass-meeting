@@ -28,7 +28,7 @@ export default async function DisplayPage({
 
   return (
     <LiveStateProvider meetingId={id}>
-      <LiveDisplay />
+      <LiveDisplay meetingId={id} />
     </LiveStateProvider>
   );
 }
