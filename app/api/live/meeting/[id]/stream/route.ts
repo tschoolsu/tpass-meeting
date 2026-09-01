@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
-import { getSession } from "@/lib/auth";
+import { getSession, isModerator } from "@/lib/auth";
 import { subscribe } from "@/lib/stream";
-import { getMeetingDetail } from "@/lib/meetings";
+import { canViewMeeting, getMeetingDetail, isParticipant } from "@/lib/meetings";
 
 // GET /api/live/meeting/:id/stream —— Server-Sent Events：表決狀態即時推播（需求：表決動態即時更新）。
 // 需登入；參與人與管理者皆可收聽。DB 為唯一事實來源（見 /api/live/meeting/:id 的 snapshot）。
@@ -18,6 +18,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const detail = await getMeetingDetail(meetingId);
   if (!detail) return new Response("找不到會議", { status: 404 });
+
+  // SEC-001：非管理員／非參與人不可訂閱即時推播。
+  if (!canViewMeeting(detail.meeting, session, isModerator(session), await isParticipant(meetingId, session.email))) {
+    return new Response("找不到會議", { status: 404 });
+  }
 
   let controller!: ReadableStreamDefaultController<Uint8Array>;
   const stream = new ReadableStream<Uint8Array>({

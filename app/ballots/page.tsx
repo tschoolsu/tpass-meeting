@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
-import { requireAccess } from "@/lib/auth";
-import { getMeeting } from "@/lib/meetings";
+import { isModerator, requireAccess } from "@/lib/auth";
+import { canViewMeeting, getMeeting, isParticipant } from "@/lib/meetings";
 import { getMeetingBallots } from "@/lib/agenda";
 import { Badge, Card } from "tpass-ui";
 import { LinkButton } from "@/components/link-button";
@@ -31,13 +31,18 @@ export default async function BallotsPage({
   const meetingId = Number(rawId);
   const gradeFilter = Array.isArray(sp.grade) ? sp.grade[0] : sp.grade;
 
-  await requireAccess(`/ballots?meetingId=${meetingId}`);
+  const session = await requireAccess(`/ballots?meetingId=${meetingId}`);
 
   const [meeting, matrix] = await Promise.all([
     getMeeting(meetingId),
     getMeetingBallots(meetingId),
   ]);
   if (!meeting || !matrix) notFound();
+
+  // SEC-001：非管理員／非參與人不可查看他人會議的具名投票紀錄。
+  if (!canViewMeeting(meeting, session, isModerator(session), await isParticipant(meetingId, session.email))) {
+    notFound();
+  }
 
   const grades = [...new Set(matrix.participants.map((p) => p.grade).filter(Boolean))].sort();
   const participants = gradeFilter

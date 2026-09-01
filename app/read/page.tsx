@@ -2,8 +2,8 @@
 // 學生依 phase 拿到「簽到／表決／等待」其中之一，建立者拿到「管理這場會議」。
 // 管理工具一律在 /manage，這裡不放。
 import { notFound } from "next/navigation";
-import { isAdmin, requireAccess } from "@/lib/auth";
-import { canWriteNotes, getMeetingDetail } from "@/lib/meetings";
+import { isAdmin, isModerator, requireAccess } from "@/lib/auth";
+import { canViewMeeting, canWriteNotes, getMeetingDetail } from "@/lib/meetings";
 import { formatTaipei } from "@/lib/time";
 import { hasBgm } from "@/lib/bgm";
 import { authConfig } from "@/config/auth";
@@ -37,6 +37,8 @@ export default async function ReadPage({
   const isAdminUser = isAdmin(session);
   const canEdit = isAdminUser || meeting.owner_sub === session.sub;
   const me = participants.find((p) => p.email === session.email);
+  // SEC-001：一般學生僅能讀取自己受邀的會議；非參與人一律 404。
+  if (!canViewMeeting(meeting, session, isAdminUser || isModerator(session), me !== undefined)) notFound();
   // 協作者在這裡寫紀錄；建立者的 NoteBar 在工作台 ④，不重複放。
   const showNoteBar = !canEdit && (await canWriteNotes(meeting, session, isAdminUser));
 

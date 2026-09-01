@@ -256,6 +256,19 @@ export async function isParticipant(meetingId: number, email: string): Promise<b
   return rows.length > 0;
 }
 
+// 讀取會議的權限判定（SEC-001）：管理員／moderator、會議建立者（以 sub 比對）、
+// 或受邀參與人方可讀取；一般學生僅能讀取自己受邀的會議。
+export function canViewMeeting(
+  meeting: Pick<Meeting, "owner_sub" | "id">,
+  session: { sub: string; email: string },
+  isManager: boolean,
+  isParticipantOfMeeting: boolean,
+): boolean {
+  if (isManager) return true;
+  if (meeting.owner_sub === session.sub) return true;
+  return isParticipantOfMeeting;
+}
+
 export async function getCheckInState(meetingId: number, email: string): Promise<boolean> {
   const { rows } = await query<{ checked_in: boolean }>(
     `SELECT checked_in FROM participants WHERE meeting_id = $1 AND email = $2`,

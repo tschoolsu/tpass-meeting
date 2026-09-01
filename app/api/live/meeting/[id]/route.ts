@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
-import { getMeetingDetail } from "@/lib/meetings";
+import { getSession, isModerator } from "@/lib/auth";
+import { canViewMeeting, getMeetingDetail, isParticipant } from "@/lib/meetings";
 import { getMotionResults } from "@/lib/agenda";
 import { derivePhase } from "@/lib/meeting-status";
 
@@ -18,6 +18,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const detail = await getMeetingDetail(meetingId);
   if (!detail) return NextResponse.json({ error: "找不到會議" }, { status: 404 });
+
+  // SEC-001：非管理員／非參與人不可讀取即時資料。
+  if (!canViewMeeting(detail.meeting, session, isModerator(session), await isParticipant(meetingId, session.email))) {
+    return NextResponse.json({ error: "找不到會議" }, { status: 404 });
+  }
 
   // 現行議程各表決案：附上每人票（需求：投影端看得到每人投票意見）
   const curMotions = detail.current
