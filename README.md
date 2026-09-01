@@ -14,7 +14,7 @@
 - **具名投票紀錄 `/ballots?meetingId=`**：完整列出每位應出席學生的投票狀態（同意／不同意／未投票），支援**年級篩選**，全程公開透明並計入會議紀錄匯出（需求 4）。
 - **大螢幕投放 `/display?id=`**：適合投影機的大字體即時頁面，顯示當前議程、應到／實到人數、表決即時票數（需求 5）。前端以 **SSE**（`/api/live/meeting/:id/stream`）訂閱，主席一「開啟表決」即收到 `VOTE_STARTED` 事件自動渲染，無需手動重整；SSE 失效時自動降級為輪詢。
 - **簽到 `/checkin?id=`**：圓形簽到按鈕；建立者、admin 與被授權的協作者額外看到**年級篩選**的代簽到面板（需求 1d）。
-- **管理面板 `/panel`（僅 admin）**：匯出／匯入全部會議紀錄（含議程、議案、具名票）、BGM、API 金鑰。
+- **管理面板 `/panel`（僅 admin）**：部會清單、匯出／匯入全部會議紀錄（含議程、議案、具名票）、BGM、API 金鑰。
 - **Email 通知**：工作台按「發布並通知」時（只在第一次發布）對所有受邀人寄送通知（含時間、地點、線上連結與會議連結），經背景佇列派送並自動重試（需求 6）。未設定 SMTP 則略過。
 
 ## API（需 API key）
@@ -120,7 +120,7 @@ curl -X POST https://meeting.tschoolsu.org/api/v1/meetings \
 | `JWT_ISSUER` | 簽發者（`https://auth.tschoolsu.org`） |
 | `PORTAL_URL` | 必填，門戶大廳網址；登出／被擋後的跳轉目標 |
 | `AUTH_DENIED_URL` | 選填，`/denied` 頁網址；未設就由 `AUTH_AUTHORIZE_URL` 的 origin 推導 `${origin}/denied` |
-| `DEPARTMENTS` | 部會 tag（逗號分隔），首頁下拉選單與會議部會欄位動態抓取 |
+| `DEPARTMENTS` | 選填，部會清單的**一次性種子**（逗號分隔）：只在 DB 還沒有任何部會時匯入，之後由 admin 在 `/panel` 新增／刪除 |
 | `ALLOW_STUDENT_CREATE` | `true` 時允許一般學生自主建立會議（預設不設） |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | Email 通知用的 SMTP 設定；未設定時通知進入佇列但不派送 |
 

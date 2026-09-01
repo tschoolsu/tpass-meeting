@@ -2,7 +2,7 @@ import { isModerator, requireAccess } from "@/lib/auth";
 import { listMeetings, listMyMeetings } from "@/lib/meetings";
 import { MeetingFilter } from "@/components/meeting-filter";
 import { canStudentCreate } from "@/lib/permissions";
-import { serviceConfig } from "@/config/service";
+import { listDepartments } from "@/lib/departments";
 import { PageHeader } from "@/components/page-header";
 import { LinkButton } from "@/components/link-button";
 
@@ -15,6 +15,8 @@ export default async function HomePage() {
 
   // 一般學生只能看到自己受邀的會議（需求 1b），無法看到管理清單。
   const meetings = isManager ? await listMeetings() : await listMyMeetings(session.email);
+  // 篩選下拉：DB 的部會清單，加上既有會議用過但已被刪掉的部會，舊會議才篩得到。
+  const departments = [...new Set([...(await listDepartments()), ...meetings.map((m) => m.department).filter(Boolean)])];
 
   return (
     <div>
@@ -34,7 +36,7 @@ export default async function HomePage() {
         }
       />
 
-      <MeetingFilter meetings={meetings} departments={serviceConfig.departments} canCreate={allowCreate} />
+      <MeetingFilter meetings={meetings} departments={departments} canCreate={allowCreate} />
     </div>
   );
 }

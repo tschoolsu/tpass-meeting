@@ -4,6 +4,7 @@ import { getMeetingDetail, listMeetingEditors } from "@/lib/meetings";
 import { notificationStats } from "@/lib/email";
 import { authConfig } from "@/config/auth";
 import { serviceConfig } from "@/config/service";
+import { listDepartments } from "@/lib/departments";
 import { Forbidden } from "@/components/forbidden";
 import { MeetingWorkbench } from "@/components/manage/meeting-workbench";
 
@@ -27,7 +28,7 @@ export default async function ManagePage({
     return <Forbidden message="只有這場會議的建立者或管理員可以進入工作台。" />;
   }
 
-  const [editors, stats] = await Promise.all([listMeetingEditors(id), notificationStats(id)]);
+  const [editors, stats, departments] = await Promise.all([listMeetingEditors(id), notificationStats(id), listDepartments()]);
   const notify = { sent: 0, pending: 0, failed: 0 };
   for (const r of stats) {
     if (r.status === "sent") notify.sent += r.cnt;
@@ -43,7 +44,7 @@ export default async function ManagePage({
         notify={notify}
         emailEnabled={serviceConfig.smtp !== null}
         checkinUrl={`${authConfig.selfUrl}/checkin?id=${id}`}
-        departments={serviceConfig.departments}
+        departments={departments}
       />
     </div>
   );

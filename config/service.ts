@@ -38,7 +38,7 @@ function smtpFromEnv(): SmtpConfig | null {
 
 export const serviceConfig = {
   postgresUrl: process.env.POSTGRES_URL!,
-  // 部門清單：逗號分隔，空白會被修掉。
+  // 部會清單的一次性種子（逗號分隔）：只在 DB 的 departments 表是空的時候匯入，之後在 /panel 管。
   departments: (process.env.DEPARTMENTS ?? "")
     .split(",")
     .map((d) => d.trim())

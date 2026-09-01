@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireAccess } from "@/lib/auth";
 import { canStudentCreate } from "@/lib/permissions";
-import { serviceConfig } from "@/config/service";
+import { listDepartments } from "@/lib/departments";
 import { MeetingForm } from "@/components/meeting-form";
 import { PageHeader } from "@/components/page-header";
 import { LinkButton } from "@/components/link-button";
@@ -29,7 +29,7 @@ export default async function CreatePage({
         desc="先填基本資料就好。建好後會進入工作台，名單與議程在那裡加。"
         right={<LinkButton href="/">← 返回首頁</LinkButton>}
       />
-      <MeetingForm departments={serviceConfig.departments} />
+      <MeetingForm departments={await listDepartments()} />
     </div>
   );
 }

@@ -166,7 +166,28 @@ async function createSchema(): Promise<void> {
       created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
       last_used_at TIMESTAMPTZ
     );
+
+    -- 部會清單：由 /panel 管理。env DEPARTMENTS 只在這張表是空的時候當一次性種子。
+    CREATE TABLE IF NOT EXISTS departments (
+      id         SERIAL PRIMARY KEY,
+      name       TEXT NOT NULL UNIQUE CHECK (char_length(name) BETWEEN 1 AND 50),
+      position   INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
   `);
+
+  await seedDepartments();
+}
+
+// 舊部署把部會放在 env DEPARTMENTS。表是空的就搬進來一次；之後以 DB 為準，
+// 管理員刪掉的部會不會因為 env 還列著而在重啟時復活。
+async function seedDepartments(): Promise<void> {
+  if (serviceConfig.departments.length === 0) return;
+  const { rows } = await pool.query<{ n: number }>(`SELECT COUNT(*)::int AS n FROM departments`);
+  if ((rows[0]?.n ?? 0) > 0) return;
+  for (const [i, name] of serviceConfig.departments.entries()) {
+    await pool.query(`INSERT INTO departments (name, position) VALUES ($1, $2) ON CONFLICT (name) DO NOTHING`, [name, i + 1]);
+  }
 }
 
 // 資料安全遷移：舊版扁平投票結構（votes → vote_questions → ballots）與新版

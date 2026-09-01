@@ -53,6 +53,7 @@ import {
 } from "@/lib/attachment-store";
 import { enqueueMeetingNotification, dispatchPendingEmails } from "@/lib/email";
 import { canStudentCreate } from "@/lib/permissions";
+import { addDepartment, removeDepartment } from "@/lib/departments";
 import { parseMeeting, ValidationError } from "@/lib/validation";
 
 export interface FormState {
@@ -549,5 +550,22 @@ export async function deleteApiKeyAction(id: number): Promise<FormState> {
   await requireAdmin();
   await deleteApiKey(id);
   revalidatePath("/panel");
+  return {};
+}
+
+// ---- 部會清單（僅 admin，/panel） ----
+
+export async function addDepartmentAction(formData: FormData): Promise<FormState> {
+  await requireAdmin();
+  const res = await addDepartment(String(formData.get("name") ?? ""));
+  if (res.error) return res;
+  revalidatePath("/");
+  return {};
+}
+
+export async function deleteDepartmentAction(name: string): Promise<FormState> {
+  await requireAdmin();
+  if (!(await removeDepartment(name))) return { error: "找不到這個部會" };
+  revalidatePath("/");
   return {};
 }

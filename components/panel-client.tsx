@@ -1,18 +1,22 @@
 "use client";
 
 import { useActionState, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import type { ComponentProps, FormEvent, ReactNode } from "react";
 import { Badge, Button, Card, ConfirmDialog, Input, Label } from "tpass-ui";
 import {
+  addDepartmentAction,
   clearBgmAction,
   createApiKeyAction,
   deleteApiKeyAction,
+  deleteDepartmentAction,
   importMeetingsAction,
   uploadBgmAction,
 } from "@/lib/actions";
 import type { ApiKeyRow } from "@/lib/api-keys";
 import { FileInput } from "@/components/file-input";
 import { LinkButton } from "@/components/link-button";
+import { ConfirmActionButton } from "@/components/confirm-action-button";
 
 const init = { error: undefined as string | undefined };
 
@@ -44,6 +48,15 @@ function IconMusic() {
       <path d="M9 18V5l12-2v13" />
       <circle cx="6" cy="18" r="3" />
       <circle cx="18" cy="16" r="3" />
+    </svg>
+  );
+}
+
+function IconTag() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M20.59 13.41 11 3H3v8l9.59 9.59a2 2 0 0 0 2.82 0l5.18-5.18a2 2 0 0 0 0-2.82z" />
+      <circle cx="7.5" cy="7.5" r="1.5" />
     </svg>
   );
 }
@@ -172,6 +185,56 @@ function ConfirmedForm({
 }
 
 /* ---------- 各功能 ---------- */
+
+function DepartmentsCard({ departments }: { departments: string[] }) {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (busy) return;
+    const form = e.currentTarget;
+    setBusy(true);
+    setError(null);
+    const res = await addDepartmentAction(new FormData(form));
+    setBusy(false);
+    if (res.error) {
+      setError(res.error);
+      return;
+    }
+    form.reset();
+    router.refresh();
+  }
+
+  return (
+    <SectionCard icon={<IconTag />} title="部會" desc="首頁篩選與建立會議時的「部會」選項。刪掉部會不會動到既有會議，舊會議仍保留原本的部會名稱。">
+      <ul className="flex flex-wrap gap-2">
+        {departments.map((d) => (
+          <li key={d} className="flex items-center gap-1 rounded-md border-2 border-foreground bg-tone-green-badge pl-2.5 font-mono text-xs font-bold">
+            {d}
+            <ConfirmActionButton
+              size="sm"
+              variant="ghost"
+              label="×"
+              aria-label={`刪除部會 ${d}`}
+              action={() => deleteDepartmentAction(d)}
+              confirm={{ title: `確定要刪除部會「${d}」嗎？`, description: "既有會議不受影響；之後可以再加回來。", confirmLabel: "刪除" }}
+            />
+          </li>
+        ))}
+        {departments.length === 0 ? <li className="text-sm font-medium text-muted-foreground">還沒有任何部會，先在下方新增一個。</li> : null}
+      </ul>
+      <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <Input name="name" required maxLength={50} placeholder="例：學術部" className="sm:max-w-xs" aria-label="部會名稱" />
+        <Button type="submit" variant="accent" size="sm" disabled={busy} className="shrink-0">
+          {busy ? "新增中…" : "新增部會"}
+        </Button>
+      </form>
+      {error ? <Banner tone="error">{error}</Banner> : null}
+    </SectionCard>
+  );
+}
 
 function ExportCard({ meetingCount }: { meetingCount: number }) {
   return (
@@ -421,11 +484,13 @@ export function PanelClient({
   bgmSize,
   meetingCount,
   apiKeys,
+  departments,
 }: {
   hasBgm: boolean;
   bgmSize: number | null;
   meetingCount: number;
   apiKeys: ApiKeyRow[];
+  departments: string[];
 }) {
   return (
     <div className="flex flex-col gap-6">
@@ -444,6 +509,7 @@ export function PanelClient({
         </div>
       </div>
 
+      <DepartmentsCard departments={departments} />
       <ExportCard meetingCount={meetingCount} />
       <ImportCard meetingCount={meetingCount} />
       <BgmCard hasBgm={hasBgm} bgmSize={bgmSize} />
