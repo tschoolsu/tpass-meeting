@@ -1,0 +1,84 @@
+# PR 檢查。做的事就是 `scripts/tpass check`（lint + tsc）再加上 build，
+# 只是換一個地方跑：換成一台什麼都沒有的全新機器。
+#
+# 為什麼要有這個：main 沒有任何守門員，而組織裡有多個帳號推得動它。
+# 這條 workflow 讓「壞掉的 code 進得了 main」不再是預設值——不必把別人的 code
+# clone 下來，就先知道它 lint / 型別 / build 過不過。
+#
+# ⚠️ 這個檔案是自給自足的樣板。要給新服務加 CI，整份複製過去，
+#    只改下面 env: 區塊裡的值（＋有 Prisma / 有測試就補上對應那一行）。
+
+name: ci
+
+on:
+  # PR 一開、每次再推 commit 都跑。
+  pull_request:
+  # 目前沒有開分支保護，直推 main 是常態——所以 main 這條不是保險絲而是主力：
+  # 推壞的人 40 秒後會收到 GitHub 的失敗信，commit 列表上掛一個紅叉。
+  push:
+    branches: [main]
+
+# 同一個 PR / 分支連推三次，前兩次直接取消，只留最新那次。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# 最小權限：只讀自己的原始碼。預設是讀寫，明寫成唯讀＝workflow 被改壞也偷不走東西。
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # build 期間會 import config/*.ts，那裡的 REQUIRED 檢查缺 env 就直接 throw。
+    # 所以 CI 需要一份「形狀正確但完全是假的」env。
+    #
+    # 🔒 這裡永遠不放真值。repo 是 public，這個檔案任何人都看得到；
+    # CI 不連任何真實資料庫、不打真的 auth——它只是編譯。
+    # 網域一律用 .invalid（RFC 2606 保證這個 TLD 永遠解析不出來）：
+    # 萬一有人寫出「build 時就去 fetch」的 code，它會當場爆炸，而不是安靜地打到正式站。
+    env:
+      # meeting 的 config/auth.ts 會在 import 時檢查 SSO 必填 env，缺了就 throw
+      # （驗章本體與必填檢查都在 tpass-auth-js 套件裡；config/service.ts 另外要求
+      # POSTGRES_URL），所以這裡要給一份形狀正確的假值，build 期不會真的連線。
+      AUTH_JWKS_URL: https://ci.invalid/.well-known/jwks.json
+      AUTH_AUTHORIZE_URL: https://ci.invalid/api/auth/authorize
+      AUTH_LOGOUT_URL: https://ci.invalid/api/auth/logout
+      MEETING_SELF_URL: https://ci.invalid
+      PORTAL_URL: https://ci.invalid
+      TPASS_SERVICE_ID: meeting
+      JWT_ISSUER: https://ci.invalid
+      POSTGRES_URL: postgresql://ci:ci@localhost:5432/ci
+
+    steps:
+      # action 版本釘在現行大版本。GitHub 會把 node20 時代的 action 強制跑在 node24
+      # 上並掛警告，一路釘最新就不會累積這種待爆的技術債。
+      - uses: actions/checkout@v7
+
+      # 順序有意義：pnpm 要先裝好，下一步的 cache: pnpm 才找得到它來算快取路徑。
+      # 版本不寫在這裡——action 會讀 package.json 的 packageManager 欄位，
+      # 跟本機、主機是同一個真相來源。
+      - uses: pnpm/action-setup@v6
+
+      # 22 是刻意的：主機跑的就是 node v22。CI 綠了但主機炸掉是最沒有價值的綠燈。
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      # --frozen-lockfile：鎖檔跟 package.json 對不上就直接失敗，不會自作主張改鎖檔。
+      # CI 要重現的是「這個 commit 當時的依賴」，不是「今天裝起來會變成什麼」。
+      # deploy.sh 上線時用的也是同一個旗標。
+      - run: pnpm install --frozen-lockfile
+
+      # Next 16 把 route 的型別（RouteContext…）生成在 .next/types/ 底下。
+      # 全新 clone 沒有 .next，所以 tsc 會噴 Cannot find name 'RouteContext'——
+      # 本機不會發生，因為你的 .next 一直都在。typegen 只生型別，不做完整 build。
+      - run: pnpm exec next typegen
+
+      # 由快到慢排：lint 幾秒、tsc 十幾秒、build 最久。錯越早出現，等紅燈的時間越短。
+      - run: pnpm lint
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm run build

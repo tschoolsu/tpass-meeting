@@ -106,17 +106,18 @@ curl -X POST https://meeting.tschoolsu.org/api/v1/meetings \
 
 ## 環境變數
 
-請複製 `.env.example` 為 `.env`：
+請複製 `.env.example` 為 `.env.local`（Next 只自動載入 `.env.local`）：
 
 | 變數 | 說明 |
 | --- | --- |
 | `POSTGRES_URL` | PostgreSQL 連線字串（`t_meeting` 資料庫） |
 | `PORT` | 服務 port（本專案固定 3009） |
-| `SERVICE_SELF_URL` | 本服務的公開網址，作為 SSO `redirect_uri` 根（如 `https://meeting.tschoolsu.org`） |
+| `MEETING_SELF_URL` | 本服務的公開網址，作為 SSO `redirect_uri` 根（如 `https://meeting.tschoolsu.org`） |
 | `TPASS_SERVICE_ID` | 服務 ID，需與註冊表一致（`meeting`），決定 JWT `aud=tpass:meeting` |
-| `AUTH_AUTHORIZE_URL` / `AUTH_JWKS_URL` / `AUTH_DENIED_URL` | T-Pass auth 端點 |
+| `AUTH_AUTHORIZE_URL` / `AUTH_JWKS_URL` | T-Pass auth 端點 |
 | `JWT_ISSUER` | 簽發者（`https://auth.tschoolsu.org`） |
-| `PORTAL_URL` | 登出／被擋後的跳轉目標 |
+| `PORTAL_URL` | 必填，門戶大廳網址；登出／被擋後的跳轉目標 |
+| `AUTH_DENIED_URL` | 選填，`/denied` 頁網址；未設就由 `AUTH_AUTHORIZE_URL` 的 origin 推導 `${origin}/denied` |
 | `DEPARTMENTS` | 部會 tag（逗號分隔），首頁下拉選單與會議部會欄位動態抓取 |
 | `ALLOW_STUDENT_CREATE` | `true` 時允許一般學生自主建立會議（預設不設） |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | Email 通知用的 SMTP 設定；未設定時通知進入佇列但不派送 |
@@ -133,17 +134,13 @@ sudo -u postgres psql -c "CREATE DATABASE t_meeting OWNER t_meeting;"
 ## 開發與部署
 
 ```bash
-npm install
-cp .env.example .env        # 填入真實值
-npm run dev                 # 開發：3009 port
-npm run build && npm start  # 正式：3009 port
+pnpm install
+cp .env.example .env.local   # 填入真實值
+pnpm dev                     # 開發：已內建 HTTPS + meeting.lvh.me:3009，憑證在 $HOME/tpass-certs（`tpass setup` 產生）
+pnpm run build && pnpm start # 正式：3009 port
 ```
 
-以 pm2 常駐（root）：
-
-```bash
-pm2 start ecosystem.config.js
-```
+部署由上層 tpass-ops 的 `tpass deploy meeting` / GitHub Actions 負責（pm2 設定從 `tpass-registry` 派生，服務 repo 不自帶 `ecosystem.config.js`）。
 
 ### 網域名稱與 TLS（`meeting.tschoolsu.org`）
 
