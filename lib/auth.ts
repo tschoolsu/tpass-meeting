@@ -20,7 +20,12 @@ export interface PermissionEntry {
 }
 
 // 同一個 request 內只驗一次章。
-export const getSession = cache((): Promise<TPassClaims | null> => tpass.getSession());
+// email 一律小寫：名單、票、協作者寫入時都 lowercase，session 不跟著壓的話
+// 「是否受邀」「是否簽到」「我的票」全部比對失敗（Google 帳號大小寫不固定）。
+export const getSession = cache(async (): Promise<TPassClaims | null> => {
+  const claims = await tpass.getSession();
+  return claims ? { ...claims, email: claims.email.toLowerCase() } : null;
+});
 
 // 依 JWT permissions 決定權限。權限一律以本服務 id 為 key。
 // role 只認 admin / moderator，其餘視為 default；restriction 只認 warning / ban，其餘視為 none。

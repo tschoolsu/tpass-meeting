@@ -118,7 +118,7 @@ export async function listMyMeetings(email: string): Promise<MeetingListItem[]> 
            COUNT(DISTINCT p.id) FILTER (WHERE p.checked_in)::int AS checked_count
     FROM meetings m
     JOIN participants p ON p.meeting_id = m.id
-    WHERE p.email = $1
+    WHERE p.email = LOWER($1)
     GROUP BY m.id
     ORDER BY m.meeting_date DESC, m.id DESC
   `, [email]);
@@ -250,7 +250,7 @@ export async function getMeetingDetail(id: number): Promise<MeetingDetail | null
 
 export async function isParticipant(meetingId: number, email: string): Promise<boolean> {
   const { rows } = await query<{ one: number }>(
-    `SELECT 1 AS one FROM participants WHERE meeting_id = $1 AND email = $2`,
+    `SELECT 1 AS one FROM participants WHERE meeting_id = $1 AND email = LOWER($2)`,
     [meetingId, email],
   );
   return rows.length > 0;
@@ -258,7 +258,7 @@ export async function isParticipant(meetingId: number, email: string): Promise<b
 
 export async function getCheckInState(meetingId: number, email: string): Promise<boolean> {
   const { rows } = await query<{ checked_in: boolean }>(
-    `SELECT checked_in FROM participants WHERE meeting_id = $1 AND email = $2`,
+    `SELECT checked_in FROM participants WHERE meeting_id = $1 AND email = LOWER($2)`,
     [meetingId, email],
   );
   return rows[0]?.checked_in ?? false;
@@ -268,7 +268,7 @@ export async function setCheckIn(meetingId: number, email: string): Promise<"ok"
   const { rowCount } = await query(
     `UPDATE participants
         SET checked_in = TRUE, checked_in_at = COALESCE(checked_in_at, now())
-      WHERE meeting_id = $1 AND email = $2 AND checked_in = FALSE`,
+      WHERE meeting_id = $1 AND email = LOWER($2) AND checked_in = FALSE`,
     [meetingId, email],
   );
   if (rowCount > 0) return "ok";

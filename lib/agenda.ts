@@ -147,7 +147,8 @@ export async function nextAgendaItem(meetingId: number): Promise<boolean> {
   return true;
 }
 
-// 開啟表決：把該 motion 設為 open，並同步把同議程其他 motion 關閉。
+// 開啟表決：把該 motion 設為 open，並把同議程「正在進行中」的其他 motion 關閉。
+// 只關 open 的——以前連尚未開放（''）的也一起打成 closed，第二案就永遠開不了。
 export async function startVote(motionId: number): Promise<boolean> {
   const { rows } = await query<{ agenda_item_id: number }>(
     `SELECT agenda_item_id FROM motions WHERE id = $1`,
@@ -157,7 +158,7 @@ export async function startVote(motionId: number): Promise<boolean> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await client.query(`UPDATE motions SET status = 'closed' WHERE agenda_item_id = $1`, [rows[0].agenda_item_id]);
+    await client.query(`UPDATE motions SET status = 'closed' WHERE agenda_item_id = $1 AND status = 'open'`, [rows[0].agenda_item_id]);
     await client.query(`UPDATE motions SET status = 'open' WHERE id = $1`, [motionId]);
     await client.query("COMMIT");
     return true;
