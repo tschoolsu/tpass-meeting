@@ -12,13 +12,24 @@ const pool = new Pool({
   options: "-c timezone=Asia/Taipei",
 });
 
-let initialized = false;
+let initPromise: Promise<void> | null = null;
 
 // 冪等的 schema 初始化：重複執行不會出錯，也不會清除既有資料。
-export async function initDb(): Promise<void> {
-  if (initialized) return;
-  initialized = true;
+// 記住「進行中／已完成」的 Promise 而不是布林旗標：
+//   1. 併發的第一批查詢會等同一個 Promise，不會有人在表建好前就跑。
+//   2. 初始化失敗（例如資料庫還沒建好）就清掉，下一個 request 會重試，
+//      不會把整個 process 卡在「以為建好了」的狀態。
+export function initDb(): Promise<void> {
+  if (!initPromise) {
+    initPromise = createSchema().catch((err) => {
+      initPromise = null;
+      throw err;
+    });
+  }
+  return initPromise;
+}
 
+async function createSchema(): Promise<void> {
   // 舊版 schema（votes／vote_questions／ballots 扁平投票）需先遷移成
   // 新版「議程 → 表決案(motion) → 具名票」結構，再建立乾淨的新表。
   await migrateLegacyVoteShape();
