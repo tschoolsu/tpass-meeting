@@ -51,7 +51,7 @@ import {
   deleteAttachmentFile,
   MAX_ATTACHMENT_BYTES,
 } from "@/lib/attachment-store";
-import { enqueueMeetingNotification, dispatchPendingEmails } from "@/lib/email";
+import { enqueueMeetingNotification } from "@/lib/email";
 import { canStudentCreate } from "@/lib/permissions";
 import { addDepartment, removeDepartment } from "@/lib/departments";
 import { parseMeeting, ValidationError } from "@/lib/validation";
@@ -138,9 +138,9 @@ export async function setMeetingStatusAction(id: number, status: string): Promis
   if (rowCount === 0) return { error: "狀態已被其他人更新，請重新整理" };
 
   if (meeting.status === "draft" && status === "published") {
-    // 第一次發布才寄通知（需求 6）：進佇列並嘗試立即派送。
+    // 第一次發布才寄通知（需求 6）：只 enqueue，實際派送交給背景 worker（H-2）。
+    // 不再同步 await dispatchPendingEmails()——SMTP 慢時那會把這個 server action 卡住數分鐘。
     await enqueueMeetingNotification(id);
-    await dispatchPendingEmails();
   }
   revalidatePath(`/read?id=${id}`);
   return {};
