@@ -132,3 +132,15 @@ export async function notificationStats(meetingId: number) {
   );
   return rows;
 }
+
+// M-5：清理過期的 sent / failed 佇列紀錄，避免 notification_queue 無限增長。
+// 由背景 worker 每日呼叫一次。
+export async function purgeNotificationQueue(keepMs = 7 * 24 * 60 * 60 * 1000): Promise<number> {
+  const { rowCount } = await query(
+    `DELETE FROM notification_queue
+      WHERE status IN ('sent', 'failed')
+        AND created_at < now() - make_interval(secs => $1)`,
+    [keepMs / 1000],
+  );
+  return rowCount ?? 0;
+}
