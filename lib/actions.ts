@@ -303,7 +303,8 @@ export async function stopVoteAction(motionId: number, meetingId: number): Promi
   return {};
 }
 
-export async function setCurrentAgendaItemAction(meetingId: number, agendaItemId: number): Promise<FormState> {
+// agendaItemId = null ＝ 回到簽到階段。
+export async function setCurrentAgendaItemAction(meetingId: number, agendaItemId: number | null): Promise<FormState> {
   const session = await requireManager();
   const ok = await canEditMeeting(meetingId, session);
   if (!ok) return { error: "你沒有權限控制這份會議" };

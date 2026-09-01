@@ -14,10 +14,15 @@ import { derivePhase, motionLabel, primaryCtaFor, PUBLIC_PHASE_META } from "@/li
 import { NoteBar } from "@/components/note-bar";
 import { BgmPlayer } from "@/components/bgm-player";
 import { MeetingLive } from "@/components/meeting-live";
+import { meetingMetadata } from "@/lib/page-title";
 import { Badge, Card } from "tpass-ui";
 import { LinkButton } from "@/components/link-button";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ searchParams }: { searchParams: Promise<{ id?: string | string[] }> }) {
+  return meetingMetadata("會議", (await searchParams).id);
+}
 
 export default async function ReadPage({
   searchParams,

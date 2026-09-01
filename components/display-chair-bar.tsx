@@ -43,7 +43,7 @@ export function DisplayChairBar({ meetingId, data }: { meetingId: number; data: 
     setBusy(null);
     if (res.error) setNotice(res.error);
     else if (res.hasNext === false) setNotice("已經是最後一案");
-    else if (res.hasPrev === false) setNotice("已經是第一案");
+    else if (res.hasPrev === false) setNotice("已經在簽到階段");
   }
 
   const current = data.current;
@@ -61,7 +61,7 @@ export function DisplayChairBar({ meetingId, data }: { meetingId: number; data: 
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 border-t-4 border-foreground bg-card shadow-[0_-6px_0_0_var(--color-foreground)]">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-3">
-        <Badge className="bg-tone-green-badge">{current ? `現行：#${current.position + 1} ${current.title}` : "尚未選定現行議程"}</Badge>
+        <Badge className="bg-tone-green-badge">{current ? `現行：#${current.position + 1} ${current.title}` : "現行：簽到"}</Badge>
         <span className="flex items-center gap-1.5">
           <Button type="button" size="sm" disabled={busy !== null} onClick={() => run("prev", () => prevAgendaItemAction(meetingId))}>
             ◀ 上一案
@@ -106,6 +106,11 @@ export function DisplayChairBar({ meetingId, data }: { meetingId: number; data: 
           ))}
           {current && current.motions.length === 0 ? (
             <span className="text-xs font-bold text-muted-foreground">此議程沒有表決案</span>
+          ) : null}
+          {!current ? (
+            <span className="text-xs font-bold text-muted-foreground">
+              實到 {data.checked_in}／應到 {data.total}，按「下一案」進議程 1
+            </span>
           ) : null}
         </span>
 

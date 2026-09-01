@@ -8,8 +8,13 @@ import { listDepartments } from "@/lib/departments";
 import { Forbidden } from "@/components/forbidden";
 import { MeetingWorkbench } from "@/components/manage/meeting-workbench";
 import { MeetingLive } from "@/components/meeting-live";
+import { meetingMetadata } from "@/lib/page-title";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ searchParams }: { searchParams: Promise<{ id?: string | string[] }> }) {
+  return meetingMetadata("工作台", (await searchParams).id);
+}
 
 // /manage?id=<meetingId> —— 建立者／管理員的工作台。守門 + 一次撈齊資料，UI 在 MeetingWorkbench。
 export default async function ManagePage({

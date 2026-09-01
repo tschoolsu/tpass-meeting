@@ -152,16 +152,6 @@ export async function countMeetings(): Promise<number> {
   return rows[0]?.count ?? 0;
 }
 
-// 會議目前的「現行」議程：以 DB current_agenda_item_id 為準，未設定時退回第一個。
-export function currentAgendaItem(
-  agenda: AgendaItemFull[],
-  currentId: number | null = null,
-): AgendaItemFull | null {
-  return (
-    (currentId != null ? agenda.find((a) => a.id === currentId) ?? null : null) ?? agenda[0] ?? null
-  );
-}
-
 export async function getMeetingDetail(id: number): Promise<MeetingDetail | null> {
   // C-1：原本這函式用 Promise.all 平行跑 7 條查詢（1 個 request 同時吃 7 條 pool 連線），
   // pool 一滿 request 就無限排隊。現在併成 3 條查詢：
@@ -287,10 +277,11 @@ export async function getMeetingDetail(id: number): Promise<MeetingDetail | null
     attachments: (a.attachments as AgendaAttachment[]) ?? [],
   }));
 
+  // current = null 就是「簽到階段」（會議一開始先簽到，主席按「下一案」才進議程 1）。
+  // 不再退回第一個議程；只有某案 open 了才強制跟到那個議程。
   const current =
     agenda.find((a) => a.id === meeting.current_agenda_item_id) ??
     agenda.find((a) => a.motions.some((m) => m.status === "open")) ??
-    agenda[0] ??
     null;
 
   return {

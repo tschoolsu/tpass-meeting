@@ -6,8 +6,13 @@ import { formatTaipei } from "@/lib/time";
 import { motionOutcome, RESULT_LABEL, thLabel } from "@/lib/threshold";
 import { derivePhase, MANAGE_PHASE_META, motionLabel } from "@/lib/meeting-status";
 import { PrintButton } from "@/components/print-button";
+import { meetingMetadata } from "@/lib/page-title";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ searchParams }: { searchParams: Promise<{ id?: string | string[] }> }) {
+  return meetingMetadata("會議報表", (await searchParams).id);
+}
 
 export default async function ReportPage({
   searchParams,

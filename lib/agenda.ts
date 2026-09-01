@@ -142,8 +142,12 @@ export async function deleteMotion(meetingId: number, id: number): Promise<boole
 
 // ---- 主席控制（需求：推進議程／開始表決／停止並宣告結果） ----
 
-// 指定某議程項目為「現行」；僅允許指向該會議自己的議程項目。
-export async function setCurrentAgendaItem(meetingId: number, agendaItemId: number): Promise<boolean> {
+// 指定某議程項目為「現行」；僅允許指向該會議自己的議程項目。null ＝ 回到簽到階段。
+export async function setCurrentAgendaItem(meetingId: number, agendaItemId: number | null): Promise<boolean> {
+  if (agendaItemId === null) {
+    const { rowCount } = await query(`UPDATE meetings SET current_agenda_item_id = NULL WHERE id = $1`, [meetingId]);
+    return rowCount > 0;
+  }
   const { rowCount } = await query(
     `UPDATE meetings
         SET current_agenda_item_id = (SELECT id FROM agenda_items WHERE id = $1 AND meeting_id = $2)
@@ -167,9 +171,10 @@ async function stepAgendaItem(meetingId: number, dir: 1 | -1): Promise<boolean> 
   );
   const currentId = m[0]?.current_agenda_item_id ?? null;
   const idx = rows.findIndex((r) => r.id === currentId);
-  const target = idx < 0 ? (dir === 1 ? 0 : -1) : idx + dir;
-  if (target < 0 || target >= rows.length) return false;
-  await query(`UPDATE meetings SET current_agenda_item_id = $1 WHERE id = $2`, [rows[target].id, meetingId]);
+  // idx = -1 就是簽到階段：下一案進議程 1；從議程 1 按上一案回到簽到（target = -1）。
+  const target = idx < 0 ? (dir === 1 ? 0 : -2) : idx + dir;
+  if (target < -1 || target >= rows.length) return false;
+  await query(`UPDATE meetings SET current_agenda_item_id = $1 WHERE id = $2`, [target < 0 ? null : rows[target].id, meetingId]);
   return true;
 }
 

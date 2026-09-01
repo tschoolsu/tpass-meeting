@@ -7,12 +7,17 @@ import { authConfig } from "@/config/auth";
 import { derivePhase, MANAGE_PHASE_META } from "@/lib/meeting-status";
 import { ChairControls } from "@/components/chair-controls";
 import { MeetingLive } from "@/components/meeting-live";
+import { meetingMetadata } from "@/lib/page-title";
 import { CopyLinkButton } from "@/components/copy-link";
 import { Forbidden } from "@/components/forbidden";
 import { Badge, Card } from "tpass-ui";
 import { LinkButton } from "@/components/link-button";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ searchParams }: { searchParams: Promise<{ id?: string | string[] }> }) {
+  return meetingMetadata("主席控制台", (await searchParams).id);
+}
 
 export default async function ChairPage({
   searchParams,

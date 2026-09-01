@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { LinkButton } from "@/components/link-button";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "會議列表" };
 
 export default async function HomePage() {
   const session = await requireAccess("/");

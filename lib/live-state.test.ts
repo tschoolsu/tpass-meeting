@@ -9,6 +9,7 @@ function state(over: Partial<LiveState> = {}): LiveState {
     meeting: { id: 1, title: "m", status: "published", phase: "live", starts_at: "2026-09-01T02:00:00.000Z" },
     checked_in: 3,
     total: 5,
+    participants: [],
     current: null,
     agenda: [
       {

@@ -36,7 +36,8 @@ export function ChairControls({
   const [pending, setPending] = useState<{ type: string; id: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const current = agenda.find((a) => a.id === currentId) ?? agenda[0] ?? null;
+  // null ＝ 簽到階段（會議一開始的預設），按「下一案」才進議程 1。
+  const current = agenda.find((a) => a.id === currentId) ?? null;
 
   async function run(type: "start" | "stop", motionId: number) {
     setPending({ type, id: motionId });
@@ -50,8 +51,8 @@ export function ChairControls({
     else router.refresh();
   }
 
-  async function setCurrent(agendaId: number) {
-    setPending({ type: "current", id: agendaId });
+  async function setCurrent(agendaId: number | null) {
+    setPending({ type: "current", id: agendaId ?? 0 });
     setError(null);
     const res = await setCurrentAgendaItemAction(meetingId, agendaId);
     setPending(null);
@@ -73,7 +74,7 @@ export function ChairControls({
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-lg font-extrabold">主席控制台</h2>
         <div className="flex items-center gap-2">
-          <Badge className="bg-tone-green-badge">{current ? `現行：${current.title}` : "尚未選定現行議程"}</Badge>
+          <Badge className="bg-tone-green-badge">{current ? `現行：${current.title}` : "現行：簽到"}</Badge>
           <Button size="sm" disabled={pending !== null} onClick={() => step("prev")}>
             上一案
           </Button>
@@ -84,6 +85,20 @@ export function ChairControls({
       </div>
 
       <div className="space-y-3">
+        <div className={`rounded-xl border-2 border-foreground bg-card p-3 ${current === null ? "ring-4 ring-accent/40" : ""}`}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-extrabold">
+              簽到
+              {current === null ? <Badge className="ml-2 bg-tone-green-badge">現行</Badge> : null}
+              <span className="ml-2 font-mono text-xs font-bold text-muted-foreground">
+                實到 {present}／應到 {expected}
+              </span>
+            </p>
+            <Button size="sm" disabled={current === null || pending?.type === "current"} onClick={() => setCurrent(null)}>
+              設為現行
+            </Button>
+          </div>
+        </div>
         {agenda.map((a, i) => {
           const isCurrent = a.id === current?.id;
           return (

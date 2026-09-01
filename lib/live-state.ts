@@ -39,10 +39,19 @@ export interface LiveMe {
   voted_motion_ids: number[];
 }
 
+export interface LiveParticipant {
+  email: string;
+  name: string;
+  grade: string;
+  checked_in: boolean;
+}
+
 export interface LiveState {
   meeting: { id: number; title: string; status: string; phase: string; starts_at: string };
   checked_in: number;
   total: number;
+  /** 全員名單（簽到階段投屏要列出誰還沒到）。 */
+  participants: LiveParticipant[];
   current: LiveAgendaItem | null;
   agenda: LiveAgendaItem[];
   me: LiveMe;

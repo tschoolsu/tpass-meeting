@@ -40,6 +40,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     },
     checked_in: detail.participants.filter((p) => p.checked_in).length,
     total: detail.participants.length,
+    participants: detail.participants.map((p) => ({ email: p.email, name: p.name, grade: p.grade, checked_in: p.checked_in })),
     current: detail.current
       ? {
           id: detail.current.id,

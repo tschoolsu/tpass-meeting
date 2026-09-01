@@ -7,8 +7,13 @@ import { formatTaipei, isStarted } from "@/lib/time";
 import { Badge, Card } from "tpass-ui";
 import { LinkButton } from "@/components/link-button";
 import { MeetingLive } from "@/components/meeting-live";
+import { meetingMetadata } from "@/lib/page-title";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ searchParams }: { searchParams: Promise<{ id?: string | string[] }> }) {
+  return meetingMetadata("簽到台", (await searchParams).id);
+}
 
 export default async function CheckinPage({
   searchParams,

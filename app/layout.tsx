@@ -21,7 +21,7 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "T-Pass Meeting",
+  title: { default: "T-Pass Meeting", template: "%s｜T-Meeting" },
   description: "會議輔助系統：會議記錄、簽到與表決。",
 };
 

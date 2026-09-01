@@ -5,10 +5,15 @@ import { getMeetingBallots } from "@/lib/agenda";
 import { Badge, Card } from "tpass-ui";
 import { LinkButton } from "@/components/link-button";
 import { MeetingLive } from "@/components/meeting-live";
+import { meetingMetadata } from "@/lib/page-title";
 import { displayName } from "@/lib/names";
 import { motionOutcome, RESULT_BADGE_CLASS, RESULT_LABEL } from "@/lib/threshold";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ searchParams }: { searchParams: Promise<{ meetingId?: string | string[] }> }) {
+  return meetingMetadata("投票紀錄", (await searchParams).meetingId);
+}
 
 const STATUS_LABEL: Record<string, string> = {
   agree: "同意",

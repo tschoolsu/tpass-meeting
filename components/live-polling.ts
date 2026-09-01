@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { LiveState } from "@/lib/live-state";
 
-export type { LiveAgendaItem, LiveBallot, LiveMotion, LiveState } from "@/lib/live-state";
+export type { LiveAgendaItem, LiveBallot, LiveMotion, LiveParticipant, LiveState } from "@/lib/live-state";
 
 // 即時連線：快照（/api/live/meeting/:id）是唯一事實來源。
 // SSE（/api/live/meeting/:id/stream）收到 CHANGED 就立刻重抓；不做任何局部合併——

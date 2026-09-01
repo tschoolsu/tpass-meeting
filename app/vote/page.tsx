@@ -5,10 +5,15 @@ import { getMotion, getMotionFlow } from "@/lib/agenda";
 import { formatTaipei, isStarted } from "@/lib/time";
 import { MotionVote } from "@/components/motion-vote";
 import { MeetingLive } from "@/components/meeting-live";
+import { motionMetadata } from "@/lib/page-title";
 import { Card } from "tpass-ui";
 import { LinkButton } from "@/components/link-button";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ searchParams }: { searchParams: Promise<{ id?: string | string[] }> }) {
+  return motionMetadata("表決", (await searchParams).id);
+}
 
 // /vote?id=<motionId> —— 單一表決案的具名投票頁（需求 3、4）。
 export default async function VotePage({

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useLiveState, type LiveAgendaItem, type LiveBallot } from "@/components/live-polling";
+import { useLiveState, type LiveAgendaItem, type LiveBallot, type LiveParticipant } from "@/components/live-polling";
 import { motionLabel } from "@/lib/meeting-status";
 import { displayName } from "@/lib/names";
 import { MotionOutcomeLine } from "@/components/motion-outcome";
@@ -38,6 +38,62 @@ function useSettledBallots(meetingId: number, current: LiveAgendaItem | null): R
   return ballots;
 }
 
+// 簽到階段（current = null，會議的預設起點）：上半全員名單、未到排前面、可捲動；下半實到／應到。
+// 目的是一眼看出誰還沒到，不是把所有人塞進一屏。
+function CheckinStage({ participants, checked, total }: { participants: LiveParticipant[]; checked: number; total: number }) {
+  const sorted = [...participants].sort((a, b) => {
+    if (a.checked_in !== b.checked_in) return a.checked_in ? 1 : -1;
+    return displayName(a).localeCompare(displayName(b), "zh-Hant");
+  });
+  const missing = total - checked;
+  return (
+    <section className="flex flex-col gap-8">
+      <div className="rounded-2xl border-4 border-foreground bg-card p-8 shadow-[12px_12px_0_0_var(--color-foreground)]">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h2 className="text-4xl font-extrabold">簽到</h2>
+          <p className="font-mono text-2xl font-extrabold text-muted-foreground">
+            未到 <span className={missing > 0 ? "text-destructive" : "text-tone-green-text"}>{missing}</span> 人
+          </p>
+        </div>
+        <ul className="mt-5 grid max-h-[60vh] grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3 lg:grid-cols-4">
+          {sorted.map((p) => (
+            <li
+              key={p.email}
+              className={`flex items-center justify-between gap-2 rounded-xl border-2 border-foreground px-3 py-2 ${
+                p.checked_in ? "bg-tone-green-bg text-muted-foreground" : "bg-card"
+              }`}
+              title={p.email}
+            >
+              <span className="min-w-0 truncate text-xl font-bold">
+                {displayName(p)}
+                {p.grade ? <span className="ml-1.5 font-mono text-sm font-bold text-muted-foreground">{p.grade}</span> : null}
+              </span>
+              <span
+                className={`shrink-0 rounded-full border-2 border-foreground px-2.5 py-0.5 font-mono text-sm font-extrabold ${
+                  p.checked_in ? "bg-tone-green-badge text-tone-green-text" : "bg-destructive text-primary-foreground"
+                }`}
+              >
+                {p.checked_in ? "已到" : "未到"}
+              </span>
+            </li>
+          ))}
+          {participants.length === 0 ? <li className="text-2xl font-bold text-muted-foreground">尚未建立名單</li> : null}
+        </ul>
+      </div>
+      <div className="grid grid-cols-2 gap-6">
+        <div className="rounded-2xl border-4 border-foreground bg-card p-6 text-center shadow-[8px_8px_0_0_var(--color-foreground)]">
+          <div className="font-mono text-6xl font-extrabold text-tone-green-text">{checked}</div>
+          <div className="mt-1 font-mono text-xl font-bold text-muted-foreground">實到</div>
+        </div>
+        <div className="rounded-2xl border-4 border-foreground bg-card p-6 text-center shadow-[8px_8px_0_0_var(--color-foreground)]">
+          <div className="font-mono text-6xl font-extrabold">{total}</div>
+          <div className="mt-1 font-mono text-xl font-bold text-muted-foreground">應到</div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function LiveDisplay({ meetingId, canControl = false }: { meetingId: number; canControl?: boolean }) {
   const { data, error } = useLiveState(meetingId);
   const ballots = useSettledBallots(meetingId, data?.current ?? null);
@@ -70,6 +126,9 @@ export function LiveDisplay({ meetingId, canControl = false }: { meetingId: numb
         </h1>
       </header>
 
+      {current === null ? (
+        <CheckinStage participants={data.participants} checked={checked} total={total} />
+      ) : (
       <section className="grid grid-cols-1 gap-8 sm:grid-cols-[1fr_auto] sm:items-stretch">
         <div className="rounded-2xl border-4 border-foreground bg-card p-10 shadow-[12px_12px_0_0_var(--color-foreground)]">
           {current ? (
@@ -162,6 +221,7 @@ export function LiveDisplay({ meetingId, canControl = false }: { meetingId: numb
           </div>
         </aside>
       </section>
+      )}
 
       <footer className="text-center font-mono text-lg font-bold text-muted-foreground">
         應到 {total} · 實到 {checked}
