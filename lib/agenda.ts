@@ -417,7 +417,7 @@ export async function getMotionResults(motionId: number): Promise<{
 // 回傳每人（應出席學生）對每個表決案的投票狀態（含未投票）。
 export interface MeetingBallotMatrix {
   meeting_id: number;
-  participants: { email: string; name: string; grade: string }[];
+  participants: { email: string; name: string; grade: string; checked_in: boolean }[];
   motions: {
     id: number;
     title: string;
@@ -436,8 +436,8 @@ export interface MeetingBallotMatrix {
 
 export async function getMeetingBallots(meetingId: number): Promise<MeetingBallotMatrix | null> {
   const [pRows, mRows, bRows] = await Promise.all([
-    query<{ email: string; name: string; grade: string }>(
-      `SELECT email, name, grade FROM participants WHERE meeting_id = $1 ORDER BY NULLIF(name, ''), email`,
+    query<{ email: string; name: string; grade: string; checked_in: boolean }>(
+      `SELECT email, name, grade, checked_in FROM participants WHERE meeting_id = $1 ORDER BY NULLIF(name, ''), email`,
       [meetingId],
     ),
     query<MeetingBallotMatrix["motions"][number]>(

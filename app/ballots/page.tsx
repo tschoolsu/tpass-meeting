@@ -6,6 +6,7 @@ import { Badge, Card } from "tpass-ui";
 import { LinkButton } from "@/components/link-button";
 import { MeetingLive } from "@/components/meeting-live";
 import { displayName } from "@/lib/names";
+import { motionOutcome, RESULT_BADGE_CLASS, RESULT_LABEL } from "@/lib/threshold";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,7 @@ export default async function BallotsPage({
   if (!meeting || !matrix) notFound();
 
   const grades = [...new Set(matrix.participants.map((p) => p.grade).filter(Boolean))].sort();
+  const live = { present: matrix.participants.filter((p) => p.checked_in).length, expected: matrix.participants.length };
   const participants = gradeFilter
     ? matrix.participants.filter((p) => p.grade === gradeFilter)
     : matrix.participants;
@@ -85,14 +87,26 @@ export default async function BallotsPage({
             <thead>
               <tr className="border-b-2 border-foreground">
                 <th className="px-3 py-2 text-left font-extrabold">參與人</th>
-                {matrix.motions.map((m) => (
-                  <th key={m.id} className="px-3 py-2 text-center font-extrabold" title={m.title}>
-                    <span className="block max-w-40 truncate">{m.title}</span>
-                    <span className="mt-0.5 block text-[10px] font-bold text-muted-foreground">
-                      同意 {matrix.counts[m.id]?.agree ?? 0} / 不同意 {matrix.counts[m.id]?.against ?? 0}
-                    </span>
-                  </th>
-                ))}
+                {matrix.motions.map((m) => {
+                  const c = matrix.counts[m.id] ?? { agree: 0, against: 0 };
+                  const o = motionOutcome({ ...m, ...c }, live);
+                  return (
+                    <th key={m.id} className="px-3 py-2 text-center font-extrabold" title={`${m.agenda_title}｜${m.title}`}>
+                      <span className="block max-w-40 truncate">
+                        #{m.agenda_position + 1} {m.agenda_title}
+                      </span>
+                      <span className="mt-0.5 block max-w-40 truncate text-[10px] font-medium text-muted-foreground">{m.title}</span>
+                      <span className="mt-0.5 block text-[10px] font-bold text-muted-foreground">
+                        同意 {c.agree} / 不同意 {c.against}
+                      </span>
+                      {o ? (
+                        <Badge className={`mt-1 ${m.status === "closed" ? RESULT_BADGE_CLASS[o.result] : "bg-accent text-primary-foreground"}`}>
+                          {m.status === "closed" ? RESULT_LABEL[o.result] : "表決中"}
+                        </Badge>
+                      ) : null}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
