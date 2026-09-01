@@ -9,6 +9,8 @@ export function proxy(request: NextRequest) {
   response.headers.set("X-Frame-Options", "SAMEORIGIN");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  // HARD-001：全站強制 HTTPS（正式環境由 https 提供；http 連線時瀏覽器會忽略）。
+  response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains");
 
   // 登出頁需要以自動送出表單 POST 到 auth 登出端點（跨站），
   // 套用 form-action 限制會擋掉送出，故登出頁不放 CSP（與 portal 一致）。
