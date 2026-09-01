@@ -427,3 +427,17 @@ export async function deleteMeeting(id: number, ownerSub: string, isAdmin: boole
   const { rowCount } = await query(`DELETE FROM meetings WHERE id = $1`, [id]);
   return rowCount > 0;
 }
+
+export interface MeetingEditor {
+  email: string;
+  granted_by: string;
+}
+
+// 該會議的協作者名單（工作台 ④ 顯示用）。
+export async function listMeetingEditors(meetingId: number): Promise<MeetingEditor[]> {
+  const { rows } = await query<MeetingEditor>(
+    `SELECT email, granted_by FROM meeting_editors WHERE meeting_id = $1 ORDER BY email`,
+    [meetingId],
+  );
+  return rows;
+}

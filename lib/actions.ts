@@ -9,6 +9,8 @@ import {
   requireManager,
 } from "@/lib/auth";
 import { isStarted } from "@/lib/time";
+import { canTransition } from "@/lib/meeting-status";
+import { query } from "@/lib/db";
 import { createApiKey, deleteApiKey } from "@/lib/api-keys";
 import { importAll } from "@/lib/backup";
 import { saveBgm, clearBgm, MAX_BGM_BYTES } from "@/lib/bgm";
@@ -104,13 +106,22 @@ export async function deleteMeetingAction(id: number): Promise<FormState> {
   redirect("/");
 }
 
+// 狀態轉移只有三種：發布（draft→published）、結束（→closed）、重新開啟（closed→published）。
+// 通知信只在「第一次發布」寄——notification_queue 沒有 unique，重複 enqueue 就會重複寄，
+// 防重靠這裡的 canTransition（同狀態不能再轉一次）與 from==="draft" 這個條件。
 export async function setMeetingStatusAction(id: number, status: string): Promise<FormState> {
   const session = await requireManager();
-  const ok = await setMeetingStatus(id, status, session.sub, isAdmin(session));
-  if (!ok) return { error: "你沒有權限更新會議狀態" };
-  revalidatePath(`/read?id=${id}`);
-  if (status === "published") {
-    // 發布後自動觸發 Email 通知（背景），並嘗試立即派送（需求 6）。
+  const meeting = await getMeeting(id);
+  if (!meeting) return { error: "找不到會議" };
+  if (!isAdmin(session) && meeting.owner_sub !== session.sub) return { error: "你沒有權限更新會議狀態" };
+  if (!canTransition(meeting.status, status)) return { error: "這個狀態轉移不合法" };
+  if (status === "closed" && (await hasOpenMotion(id))) return { error: "有表決進行中，請先在主席控制台停止" };
+
+  const { rowCount } = await query(`UPDATE meetings SET status = $1 WHERE id = $2 AND status = $3`, [status, id, meeting.status]);
+  if (rowCount === 0) return { error: "狀態已被其他人更新，請重新整理" };
+
+  if (meeting.status === "draft" && status === "published") {
+    // 第一次發布才寄通知（需求 6）：進佇列並嘗試立即派送。
     await enqueueMeetingNotification(id);
     await dispatchPendingEmails();
   }
@@ -118,15 +129,13 @@ export async function setMeetingStatusAction(id: number, status: string): Promis
   return {};
 }
 
-async function setMeetingStatus(id: number, status: string, ownerSub: string, isAdminUser: boolean): Promise<boolean> {
-  const meeting = await getMeeting(id);
-  if (!meeting) return false;
-  if (!isAdminUser && meeting.owner_sub !== ownerSub) return false;
-  if (!["draft", "published", "live", "closed"].includes(status)) return false;
-  const { rowCount } = await import("@/lib/db").then((db) =>
-    db.query(`UPDATE meetings SET status = $1 WHERE id = $2`, [status, id]),
+async function hasOpenMotion(meetingId: number): Promise<boolean> {
+  const { rows } = await query<{ n: number }>(
+    `SELECT COUNT(*)::int AS n FROM motions m JOIN agenda_items a ON a.id = m.agenda_item_id
+      WHERE a.meeting_id = $1 AND m.status = open`,
+    [meetingId],
   );
-  return rowCount > 0;
+  return (rows[0]?.n ?? 0) > 0;
 }
 
 export async function checkInAction(meetingId: number): Promise<FormState & { done?: boolean }> {

@@ -6,7 +6,6 @@ import { hasBgm } from "@/lib/bgm";
 import { liveUrl } from "@/lib/urls";
 import { authConfig } from "@/config/auth";
 import { NoteBar } from "@/components/note-bar";
-import { DeleteMeetingButton } from "@/components/delete-meeting";
 import { CopyLinkButton } from "@/components/copy-link";
 import { BgmPlayer } from "@/components/bgm-player";
 import { AgendaManager } from "@/components/agenda-manager";
@@ -97,10 +96,7 @@ export default async function ReadPage({
 
           <div className="flex flex-wrap items-center gap-2">
             {canEdit ? (
-              <>
-                <LinkButton href={`/create?id=${id}`} variant="accent">編輯</LinkButton>
-                <DeleteMeetingButton meetingId={id} title={meeting.title} />
-              </>
+              <LinkButton href={`/manage?id=${id}`} variant="primary">管理這場會議</LinkButton>
             ) : null}
             {isManager ? (
               <>
