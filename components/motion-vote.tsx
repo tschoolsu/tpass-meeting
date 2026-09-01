@@ -32,7 +32,8 @@ export function MotionVote({
     .find((m) => m.id === motionId) ?? null;
   const isOpen = motion ? motion.status === "open" : initialStatus === "open";
   const checkedIn = data?.me.checked_in ?? initialCheckedIn;
-  const answeredValue = answered;
+  // 快照說我投過就算投過（例如在別的裝置投的）；本地 answered 只是送出當下的即時回饋。
+  const answeredValue = answered ?? (data?.me.voted_motion_ids.includes(motionId) ? "agree" : null);
 
   async function cast(status: "agree" | "against") {
     if (!isOpen || busy || answeredValue) return;

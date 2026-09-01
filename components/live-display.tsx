@@ -48,6 +48,17 @@ function CheckinStage({ participants, checked, total }: { participants: LivePart
   const missing = total - checked;
   return (
     <section className="flex flex-col gap-8">
+      {/* 實到／應到放名單上面：名單一長被捲掉，人數還看得到 */}
+      <div className="grid grid-cols-2 gap-6">
+        <div className="rounded-2xl border-4 border-foreground bg-card p-6 text-center shadow-[8px_8px_0_0_var(--color-foreground)]">
+          <div className="font-mono text-6xl font-extrabold text-tone-green-text">{checked}</div>
+          <div className="mt-1 font-mono text-xl font-bold text-muted-foreground">實到</div>
+        </div>
+        <div className="rounded-2xl border-4 border-foreground bg-card p-6 text-center shadow-[8px_8px_0_0_var(--color-foreground)]">
+          <div className="font-mono text-6xl font-extrabold">{total}</div>
+          <div className="mt-1 font-mono text-xl font-bold text-muted-foreground">應到</div>
+        </div>
+      </div>
       <div className="rounded-2xl border-4 border-foreground bg-card p-8 shadow-[12px_12px_0_0_var(--color-foreground)]">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h2 className="text-4xl font-extrabold">簽到</h2>
@@ -79,16 +90,6 @@ function CheckinStage({ participants, checked, total }: { participants: LivePart
           ))}
           {participants.length === 0 ? <li className="text-2xl font-bold text-muted-foreground">尚未建立名單</li> : null}
         </ul>
-      </div>
-      <div className="grid grid-cols-2 gap-6">
-        <div className="rounded-2xl border-4 border-foreground bg-card p-6 text-center shadow-[8px_8px_0_0_var(--color-foreground)]">
-          <div className="font-mono text-6xl font-extrabold text-tone-green-text">{checked}</div>
-          <div className="mt-1 font-mono text-xl font-bold text-muted-foreground">實到</div>
-        </div>
-        <div className="rounded-2xl border-4 border-foreground bg-card p-6 text-center shadow-[8px_8px_0_0_var(--color-foreground)]">
-          <div className="font-mono text-6xl font-extrabold">{total}</div>
-          <div className="mt-1 font-mono text-xl font-bold text-muted-foreground">應到</div>
-        </div>
       </div>
     </section>
   );

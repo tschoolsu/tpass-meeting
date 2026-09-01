@@ -70,7 +70,10 @@ export default async function VotePage({
   return (
     <div className="flex min-h-[60vh] flex-col justify-center py-8">
       <MeetingLive meetingId={meeting.id} refresh={false} excludeMotionId={motionId} />
+      {/* key=motionId：從 /vote?id=A 的彈窗跳到 /vote?id=B 是同一個 route，React 會沿用元件實例，
+          沒有 key 的話 answered / status 的 useState 會卡在 A 的「已完成」畫面。 */}
       <MotionVote
+        key={motionId}
         meetingId={meeting.id}
         motionId={motionId}
         initialStatus={flow.motion.status}
