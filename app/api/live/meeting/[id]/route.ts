@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { getMeetingDetail } from "@/lib/meetings";
 import { getMotionResults } from "@/lib/agenda";
+import { derivePhase } from "@/lib/meeting-status";
 
 // GET /api/live/meeting/:id —— 供前端短輪詢的輕量實時資料（需求 3、5）。
 // 需登入；參與人與管理者皆可讀取。
@@ -44,6 +45,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       id: detail.meeting.id,
       title: detail.meeting.title,
       status: detail.meeting.status,
+      phase: derivePhase(detail.meeting.status, detail.meeting.starts_at),
       starts_at: detail.meeting.starts_at,
     },
     checked_in: detail.participants.filter((p) => p.checked_in).length,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authenticateApiKey, extractKey } from "@/lib/api-keys";
 import { getMeetingDetail } from "@/lib/meetings";
+import { derivePhase } from "@/lib/meeting-status";
 
 // GET /api/v1/meetings/:id —— 會議資訊（含 vote id、題目、參與人、紀錄）。
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -30,6 +31,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       online_link: detail.meeting.online_link,
       description: detail.meeting.description,
       status: detail.meeting.status,
+      // 畫面用的推導狀態（draft / scheduled / live / closed）；status 是 DB 原值，兩者都給。
+      phase: derivePhase(detail.meeting.status, detail.meeting.starts_at),
     },
     agenda: detail.agenda,
     participants: detail.participants.map((p) => ({ email: p.email, grade: p.grade, checked_in: p.checked_in })),
