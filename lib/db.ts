@@ -159,6 +159,20 @@ async function createSchema(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_notification_queue_pending
       ON notification_queue (status, next_attempt_at);
 
+    -- LOGIC-001：移除既有重複通知，並建立 UNIQUE(meeting_id, email)，使
+    -- enqueueMeetingNotification 的 ON CONFLICT DO NOTHING 生效，避免重複發布重複寄信。
+    DELETE FROM notification_queue a
+      USING notification_queue b
+     WHERE a.id > b.id
+       AND a.meeting_id = b.meeting_id
+       AND a.email = b.email;
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'notification_queue_meeting_email_key') THEN
+        ALTER TABLE notification_queue ADD CONSTRAINT notification_queue_meeting_email_key UNIQUE (meeting_id, email);
+      END IF;
+    END $$;
+
     CREATE TABLE IF NOT EXISTS api_keys (
       id           SERIAL PRIMARY KEY,
       label        TEXT NOT NULL,
