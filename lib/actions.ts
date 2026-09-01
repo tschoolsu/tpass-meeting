@@ -187,7 +187,7 @@ export async function updateAgendaItemAction(agendaId: number, meetingId: number
   const session = await requireManager();
   const ok = await canEditMeeting(meetingId, session);
   if (!ok) return { error: "你沒有權限編輯這份會議" };
-  await updateAgendaItem(agendaId, {
+  await updateAgendaItem(meetingId, agendaId, {
     title: String(formData.get("title") ?? ""),
     description: String(formData.get("description") ?? ""),
   });
@@ -199,7 +199,8 @@ export async function deleteAgendaItemAction(agendaId: number, meetingId: number
   const session = await requireManager();
   const ok = await canEditMeeting(meetingId, session);
   if (!ok) return { error: "你沒有權限編輯這份會議" };
-  await deleteAgendaItem(agendaId);
+  const deleted = await deleteAgendaItem(meetingId, agendaId);
+  if (!deleted) return { error: "議程項目不存在或未授權" };
   revalidatePath(`/read?id=${meetingId}`);
   return {};
 }
@@ -218,11 +219,12 @@ export async function addMotionAction(agendaId: number, meetingId: number, formD
   const ok = await canEditMeeting(meetingId, session);
   if (!ok) return { error: "你沒有權限編輯這份會議" };
   try {
-    await addMotion(agendaId, {
+    const motionId = await addMotion(meetingId, agendaId, {
       title: String(formData.get("title") ?? ""),
       description: String(formData.get("description") ?? ""),
       threshold: String(formData.get("threshold") ?? "1/2+1/2"),
     });
+    if (!motionId) return { error: "議程項目不存在或未授權" };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "表決案設定不正確" };
   }
@@ -234,7 +236,7 @@ export async function updateMotionAction(motionId: number, meetingId: number, fo
   const session = await requireManager();
   const ok = await canEditMeeting(meetingId, session);
   if (!ok) return { error: "你沒有權限編輯這份會議" };
-  const updated = await updateMotion(motionId, {
+  const updated = await updateMotion(meetingId, motionId, {
     title: String(formData.get("title") ?? ""),
     description: String(formData.get("description") ?? ""),
     threshold: String(formData.get("threshold") ?? "1/2+1/2"),
@@ -248,8 +250,8 @@ export async function deleteMotionAction(motionId: number, meetingId: number): P
   const session = await requireManager();
   const ok = await canEditMeeting(meetingId, session);
   if (!ok) return { error: "你沒有權限編輯這份會議" };
-  const deleted = await deleteMotion(motionId);
-  if (!deleted) return { error: "表決已經開始或結束，無法刪除" };
+  const deleted = await deleteMotion(meetingId, motionId);
+  if (!deleted) return { error: "表決已經開始或結束，或該表決不屬於此會議" };
   revalidatePath(`/read?id=${meetingId}`);
   return {};
 }
@@ -262,7 +264,8 @@ export async function startVoteAction(motionId: number, meetingId: number): Prom
   if (!ok) return { error: "你沒有權限控制這份會議" };
   const meeting = await getMeeting(meetingId);
   if (meeting?.status === "closed") return { error: "會議已結束，無法開放表決" };
-  await startVote(motionId);
+  const started = await startVote(meetingId, motionId);
+  if (!started) return { error: "表決案不存在或未授權" };
 
   // 即時推播：表決開始 → VOTE_STARTED（帶上該表決案的選項內容）
   const motion = await getMotion(motionId);
@@ -291,7 +294,8 @@ export async function stopVoteAction(motionId: number, meetingId: number): Promi
   const session = await requireManager();
   const ok = await canEditMeeting(meetingId, session);
   if (!ok) return { error: "你沒有權限控制這份會議" };
-  await stopVote(motionId);
+  const stopped = await stopVote(meetingId, motionId);
+  if (!stopped) return { error: "表決案不存在或未授權" };
 
   const motion = await getMotion(motionId);
   if (motion) {
@@ -365,12 +369,16 @@ export async function addAttachmentAction(
   if (file.size > MAX_ATTACHMENT_BYTES) return { error: "附件不可超過 10 MB" };
 
   const stored = await saveAttachment(file);
-  await addAttachment(agendaId, {
+  const attachmentId = await addAttachment(meetingId, agendaId, {
     filename: file.name,
     mime: file.type || "application/octet-stream",
     size: file.size,
     storage_path: stored.path,
   });
+  if (!attachmentId) {
+    await deleteAttachmentFile(stored.path);
+    return { error: "議程項目不存在或未授權" };
+  }
   revalidatePath(`/read?id=${meetingId}`);
   return {};
 }
@@ -381,9 +389,14 @@ export async function deleteAttachmentAction(attachmentId: number, meetingId: nu
   if (!ok) return { error: "你沒有權限編輯這份會議" };
   const { getAttachment } = await import("@/lib/agenda");
   const att = await getAttachment(attachmentId);
-  if (att) await deleteAttachmentFile(att.storage_path);
+  if (!att || att.meeting_id !== meetingId) return { error: "附件不存在或未授權" };
+  await deleteAttachmentFile(att.storage_path);
   const { query } = await import("@/lib/db");
-  await query(`DELETE FROM agenda_attachments WHERE id = $1`, [attachmentId]);
+  await query(
+    `DELETE FROM agenda_attachments
+      WHERE id = $1 AND agenda_item_id IN (SELECT id FROM agenda_items WHERE meeting_id = $2)`,
+    [attachmentId, meetingId],
+  );
   revalidatePath(`/read?id=${meetingId}`);
   return {};
 }
