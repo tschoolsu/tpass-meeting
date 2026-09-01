@@ -167,6 +167,16 @@ function requireString(v: unknown, field: string): string {
   return v;
 }
 
+// SEC-004：附件儲存路徑白名單——僅接受上傳目錄內的伺服器產生檔名，防止匯入檔
+// 植入路徑穿越（例如 ../../.env）後由附件下載端點讀取任意檔案。
+const SAFE_STORAGE_PATH = /^uploads\/agenda\/[\w.-]+$/;
+
+function requireStoragePath(v: unknown, field: string): string {
+  const p = requireString(v, field);
+  if (!SAFE_STORAGE_PATH.test(p)) throw new ValidationError(`${field} 格式不正確`);
+  return p;
+}
+
 export async function importAll(data: unknown): Promise<number> {
   if (typeof data !== "object" || data === null || (data as BackupData).version !== 2) {
     throw new ValidationError("匯入檔案格式不正確（缺少 version=2）");
@@ -232,7 +242,7 @@ export async function importAll(data: unknown): Promise<number> {
             `INSERT INTO agenda_attachments (agenda_item_id, filename, mime, size, storage_path)
              VALUES ($1, $2, $3, $4, $5)`,
             [agendaId, requireString(att.filename, "attachment.filename"), att.mime ?? "",
-             Number(att.size) || 0, requireString(att.storage_path, "attachment.storage_path")],
+             Number(att.size) || 0, requireStoragePath(att.storage_path, "attachment.storage_path")],
           );
         }
 
