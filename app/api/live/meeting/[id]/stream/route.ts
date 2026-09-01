@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
 import { subscribe } from "@/lib/stream";
-import { getMeetingDetail } from "@/lib/meetings";
+import { getMeeting } from "@/lib/meetings";
 
-// GET /api/live/meeting/:id/stream —— Server-Sent Events：表決狀態即時推播（需求：表決動態即時更新）。
+// GET /api/live/meeting/:id/stream —— Server-Sent Events。
+// 只送兩種事件：CHANGED（這場會議有東西變了，client 去重抓快照）與 heartbeat。
 // 需登入；參與人與管理者皆可收聽。DB 為唯一事實來源（見 /api/live/meeting/:id 的 snapshot）。
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,8 +17,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (!/^\d+$/.test(raw)) return new Response("id 格式不正確", { status: 400 });
   const meetingId = Number(raw);
 
-  const detail = await getMeetingDetail(meetingId);
-  if (!detail) return new Response("找不到會議", { status: 404 });
+  if (!(await getMeeting(meetingId))) return new Response("找不到會議", { status: 404 });
 
   let controller!: ReadableStreamDefaultController<Uint8Array>;
   const stream = new ReadableStream<Uint8Array>({
@@ -36,7 +36,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
   };
 
-  // 訂閱並訂定清理邏輯
   let closed = false;
   const unsubscribe = subscribe(meetingId, (event, payload) => {
     if (!closed) send(event, payload);
@@ -55,22 +54,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   request.signal.addEventListener("abort", cleanup, { once: true });
 
-  // 連線建立後立即補目前狀態（前端一接上就能當場看到已開放的案）
-  const initial = detail.agenda
-    .flatMap((a) =>
-      a.motions.map((m) => ({
-        id: m.id,
-        agenda_item_id: m.agenda_item_id,
-        title: m.title,
-        threshold: m.threshold,
-        status: m.status,
-        agree: m.agree,
-        against: m.against,
-      })),
-    )
-    .find((m) => m.status === "open");
-
-  send("connected", { meetingId, current: initial });
+  send("connected", { meetingId });
 
   return new Response(stream, {
     headers: {

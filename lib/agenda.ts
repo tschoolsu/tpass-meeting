@@ -233,6 +233,19 @@ export async function getMotionFlow(motionId: number, email: string): Promise<Mo
   };
 }
 
+// 我在這場會議投過的表決案 id（快照的 me.voted_motion_ids；彈窗靠它判斷「還沒投」）。
+export async function listMyVotedMotionIds(meetingId: number, email: string): Promise<number[]> {
+  const { rows } = await query<{ motion_id: number }>(
+    `SELECT b.motion_id
+       FROM ballots b
+       JOIN motions m ON m.id = b.motion_id
+       JOIN agenda_items ai ON ai.id = m.agenda_item_id
+      WHERE ai.meeting_id = $1 AND b.voter_email = LOWER($2)`,
+    [meetingId, email],
+  );
+  return rows.map((r) => r.motion_id);
+}
+
 async function getMeetingOfAgenda(agendaItemId: number): Promise<number> {
   const { rows } = await query<{ meeting_id: number }>(
     `SELECT meeting_id FROM agenda_items WHERE id = $1`,

@@ -35,7 +35,6 @@ import {
   addAttachment,
   deleteAgendaItem,
   deleteMotion,
-  getMotion,
   moveAgendaItem,
   nextAgendaItem,
   setCurrentAgendaItem,
@@ -45,7 +44,7 @@ import {
   updateAgendaItem,
   updateMotion,
 } from "@/lib/agenda";
-import { broadcast } from "@/lib/stream";
+import { notifyMeetingChanged } from "@/lib/stream";
 import {
   saveAttachment,
   deleteAttachmentFile,
@@ -110,6 +109,7 @@ export async function removeParticipantAction(meetingId: number, email: string):
   if (!(await canEditMeeting(meetingId, session))) return { error: "你沒有權限編輯這場會議的名單" };
   const ok = await removeParticipant(meetingId, email);
   if (!ok) return { error: "名單裡沒有這個人" };
+  await notifyMeetingChanged(meetingId, "edit");
   revalidatePath(`/read?id=${meetingId}`);
   return {};
 }
@@ -141,6 +141,7 @@ export async function setMeetingStatusAction(id: number, status: string): Promis
     await enqueueMeetingNotification(id);
     await dispatchPendingEmails();
   }
+  await notifyMeetingChanged(id, "status");
   revalidatePath(`/read?id=${id}`);
   return {};
 }
@@ -163,9 +164,10 @@ export async function checkInAction(meetingId: number): Promise<FormState & { do
   const invited = await isParticipant(meetingId, session.email);
   if (!invited) return { error: "你未被邀請參與這場會議" };
   const status = await setCheckIn(meetingId, session.email);
+  if (status === "not-invited") return { error: "你未被邀請參與這場會議" };
+  await notifyMeetingChanged(meetingId, "checkin");
   revalidatePath(`/read?id=${meetingId}`);
   revalidatePath(`/checkin?id=${meetingId}`);
-  if (status === "not-invited") return { error: "你未被邀請參與這場會議" };
   return { done: true };
 }
 
@@ -179,6 +181,7 @@ export async function addAgendaItemAction(meetingId: number, formData: FormData)
     title: String(formData.get("title") ?? ""),
     description: String(formData.get("description") ?? ""),
   });
+  await notifyMeetingChanged(meetingId, "edit");
   revalidatePath(`/read?id=${meetingId}`);
   return {};
 }
@@ -191,6 +194,7 @@ export async function updateAgendaItemAction(agendaId: number, meetingId: number
     title: String(formData.get("title") ?? ""),
     description: String(formData.get("description") ?? ""),
   });
+  await notifyMeetingChanged(meetingId, "edit");
   revalidatePath(`/read?id=${meetingId}`);
   return {};
 }
@@ -200,6 +204,7 @@ export async function deleteAgendaItemAction(agendaId: number, meetingId: number
   const ok = await canEditMeeting(meetingId, session);
   if (!ok) return { error: "你沒有權限編輯這份會議" };
   await deleteAgendaItem(agendaId);
+  await notifyMeetingChanged(meetingId, "edit");
   revalidatePath(`/read?id=${meetingId}`);
   return {};
 }
@@ -209,6 +214,7 @@ export async function moveAgendaItemAction(agendaId: number, dir: "up" | "down",
   const ok = await canEditMeeting(meetingId, session);
   if (!ok) return { error: "你沒有權限編輯這份會議" };
   await moveAgendaItem(agendaId, dir, meetingId);
+  await notifyMeetingChanged(meetingId, "edit");
   revalidatePath(`/read?id=${meetingId}`);
   return {};
 }
@@ -226,6 +232,7 @@ export async function addMotionAction(agendaId: number, meetingId: number, formD
   } catch (err) {
     return { error: err instanceof Error ? err.message : "表決案設定不正確" };
   }
+  await notifyMeetingChanged(meetingId, "edit");
   revalidatePath(`/read?id=${meetingId}`);
   return {};
 }
@@ -240,6 +247,7 @@ export async function updateMotionAction(motionId: number, meetingId: number, fo
     threshold: String(formData.get("threshold") ?? "1/2+1/2"),
   });
   if (!updated) return { error: "表決已經開始或結束，無法修改" };
+  await notifyMeetingChanged(meetingId, "edit");
   revalidatePath(`/read?id=${meetingId}`);
   return {};
 }
@@ -250,6 +258,7 @@ export async function deleteMotionAction(motionId: number, meetingId: number): P
   if (!ok) return { error: "你沒有權限編輯這份會議" };
   const deleted = await deleteMotion(motionId);
   if (!deleted) return { error: "表決已經開始或結束，無法刪除" };
+  await notifyMeetingChanged(meetingId, "edit");
   revalidatePath(`/read?id=${meetingId}`);
   return {};
 }
@@ -263,24 +272,7 @@ export async function startVoteAction(motionId: number, meetingId: number): Prom
   const meeting = await getMeeting(meetingId);
   if (meeting?.status === "closed") return { error: "會議已結束，無法開放表決" };
   await startVote(motionId);
-
-  // 即時推播：表決開始 → VOTE_STARTED（帶上該表決案的選項內容）
-  const motion = await getMotion(motionId);
-  if (motion) {
-    await broadcast(meetingId, "VOTE_STARTED", {
-      meetingId,
-      motion: {
-        id: motion.id,
-        agenda_item_id: motion.agenda_item_id,
-        title: motion.title,
-        threshold: motion.threshold,
-        status: "open",
-        agree: 0,
-        against: 0,
-      },
-    });
-  }
-
+  await notifyMeetingChanged(meetingId, "vote-started");
   revalidatePath(`/read?id=${meetingId}`);
   revalidatePath(`/chair?id=${meetingId}`);
   revalidatePath(`/display?id=${meetingId}`);
@@ -292,12 +284,7 @@ export async function stopVoteAction(motionId: number, meetingId: number): Promi
   const ok = await canEditMeeting(meetingId, session);
   if (!ok) return { error: "你沒有權限控制這份會議" };
   await stopVote(motionId);
-
-  const motion = await getMotion(motionId);
-  if (motion) {
-    await broadcast(meetingId, "VOTE_CLOSED", { meetingId, motionId, status: "closed" });
-  }
-
+  await notifyMeetingChanged(meetingId, "vote-closed");
   revalidatePath(`/read?id=${meetingId}`);
   revalidatePath(`/chair?id=${meetingId}`);
   revalidatePath(`/display?id=${meetingId}`);
@@ -309,6 +296,7 @@ export async function setCurrentAgendaItemAction(meetingId: number, agendaItemId
   const ok = await canEditMeeting(meetingId, session);
   if (!ok) return { error: "你沒有權限控制這份會議" };
   await setCurrentAgendaItem(meetingId, agendaItemId);
+  await notifyMeetingChanged(meetingId, "agenda-current");
   revalidatePath(`/read?id=${meetingId}`);
   revalidatePath(`/chair?id=${meetingId}`);
   revalidatePath(`/display?id=${meetingId}`);
@@ -320,6 +308,7 @@ export async function nextAgendaItemAction(meetingId: number): Promise<FormState
   const ok = await canEditMeeting(meetingId, session);
   if (!ok) return { error: "你沒有權限控制這份會議" };
   const hasNext = await nextAgendaItem(meetingId);
+  await notifyMeetingChanged(meetingId, "agenda-current");
   revalidatePath(`/read?id=${meetingId}`);
   revalidatePath(`/chair?id=${meetingId}`);
   revalidatePath(`/display?id=${meetingId}`);
@@ -344,6 +333,7 @@ export async function voteAction(
   const result = await submitBallot(motionId, session.email, status);
   if (result === "not-open") return { error: "表決尚未開放，或已經結束" };
   if (result === "duplicate") return { error: "你已經完成這項表決，無法更改" };
+  await notifyMeetingChanged(meetingId, "ballot");
   revalidatePath(`/read?id=${meetingId}`);
   revalidatePath(`/display?id=${meetingId}`);
   return {};
@@ -416,6 +406,7 @@ export async function addParticipantEmailsAction(meetingId: number, _prev: FormS
     );
     if (r.rowCount && r.rowCount > 0) added++;
   }
+  await notifyMeetingChanged(meetingId, "edit");
   revalidatePath(`/read?id=${meetingId}`);
   revalidatePath(`/checkin?id=${meetingId}`);
   return { added };
@@ -434,8 +425,10 @@ export async function staffCheckInAction(meetingId: number, email: string): Prom
   if (!isStarted(meeting.starts_at)) return { error: "會議尚未開始，開始後才能簽到" };
   if (!(await isParticipant(meetingId, email))) return { error: "此人未被邀請" };
   const status = await setCheckIn(meetingId, email);
+  if (status === "not-invited") return { error: "此人未被邀請" };
+  await notifyMeetingChanged(meetingId, "checkin");
   revalidatePath(`/checkin?id=${meetingId}`);
-  return { error: status === "not-invited" ? "此人未被邀請" : undefined };
+  return {};
 }
 
 export async function noteAction(meetingId: number, body: string): Promise<FormState> {

@@ -113,6 +113,13 @@ export async function broadcast(meetingId: number, event: string, payload: unkno
   }
 }
 
+// 「這場會議有東西變了，請立刻重抓快照」。唯一的事件種類——
+// 以前分 VOTE_STARTED / VOTE_CLOSED 各自在 client 局部合併，合併邏輯就是 bug 來源；
+// 快照（/api/live/meeting/:id）本來就是唯一事實來源，SSE 只當鈴聲。
+export function notifyMeetingChanged(meetingId: number, reason: string): Promise<void> {
+  return broadcast(meetingId, "CHANGED", { reason, at: Date.now() });
+}
+
 // 供測試／重連使用：清空所有闭源码（伺服器重啟時用）。
 export function _resetRelayForTesting(): void {
   relay = null;

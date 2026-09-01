@@ -1,36 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { LiveState } from "@/lib/live-state";
 
-// 即時連線（需求：表決動態即時更新）：
-// 主通道為 Server-Sent Events（/api/live/meeting/:id/stream），收到 VOTE_STARTED /
-// VOTE_CLOSED 等事件時即時更新 state；SSE 失效時自動降級為短輪詢。
-export interface LiveMotion {
-  id: number;
-  title: string;
-  threshold: string;
-  status: string;
-  agree: number;
-  against: number;
-}
+export type { LiveAgendaItem, LiveBallot, LiveMotion, LiveState } from "@/lib/live-state";
 
-export interface LiveAgendaItem {
-  id: number;
-  position: number;
-  title: string;
-  description: string;
-  motions: LiveMotion[];
-}
-
-export interface LiveState {
-  meeting: { id: number; title: string; status: string; starts_at: string };
-  checked_in: number;
-  total: number;
-  current: LiveAgendaItem | null;
-  agenda: LiveAgendaItem[];
-}
-
+// 即時連線：快照（/api/live/meeting/:id）是唯一事實來源。
+// SSE（/api/live/meeting/:id/stream）收到 CHANGED 就立刻重抓；不管 SSE 活不活，
+// 固定 3 秒輪詢一次兜底。不做任何局部合併——以前那套 mergeMotion 會抹掉欄位、漏更新 current。
 const POLL_MS = 3000;
+const DEBOUNCE_MS = 150;
 
 export function useLiveState(meetingId: number, enabled = true): {
   data: LiveState | null;
@@ -38,94 +17,67 @@ export function useLiveState(meetingId: number, enabled = true): {
 } {
   const [data, setData] = useState<LiveState | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const esRef = useRef<EventSource | null>(null);
+  const inflight = useRef(false);
 
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
-    let es: EventSource | null = null;
-    let pollTimer: ReturnType<typeof setInterval> | null = null;
-    let sseOk = true;
+    let debounce: ReturnType<typeof setTimeout> | null = null;
 
+    let again = false;
     async function snapshot() {
+      if (inflight.current) {
+        again = true; // 正在飛：結束後再抓一次，不漏掉這次的變化
+        return;
+      }
+      inflight.current = true;
       try {
         const res = await fetch(`/api/live/meeting/${meetingId}`, { cache: "no-store" });
-        if (!cancelled && res.ok) {
+        if (cancelled) return;
+        if (res.ok) {
           setData(await res.json());
           setError(null);
-        } else if (!cancelled && res.status === 401) {
+        } else if (res.status === 401) {
           setError("未登入");
         }
       } catch {
         /* 等下一次 */
+      } finally {
+        inflight.current = false;
+        if (again && !cancelled) {
+          again = false;
+          void snapshot();
+        }
       }
     }
 
-    // 主通道：SSE
-    try {
-      es = new EventSource(`/api/live/meeting/${meetingId}/stream`);
-      esRef.current = es;
-
-      es.addEventListener("connected", () => {
-        sseOk = true;
-        snapshot();
-      });
-      es.addEventListener("VOTE_STARTED", (e) => {
-        const { motion } = JSON.parse(e.data) as { motion: LiveMotion };
-        setData((prev) => (prev ? mergeMotion(prev, { ...motion, status: "open" }) : prev));
-      });
-      es.addEventListener("VOTE_CLOSED", (e) => {
-        const { motionId } = JSON.parse(e.data) as { motionId: number };
-        setData((prev) => (prev ? setMotionStatus(prev, motionId, "closed") : prev));
-      });
-      es.onerror = () => {
-        // SSE 異常：輪詢已在背景執行，仍保有即時更新能力
-        sseOk = false;
-      };
-    } catch {
-      sseOk = false;
+    function scheduleSnapshot() {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(snapshot, DEBOUNCE_MS);
     }
 
-    // 無論 SSE 是否正常，都開輪詢作為「保證可靠」的主同步管道：
-    // REST snapshot（/api/live/meeting/:id）是唯一事實來源，已實測穩定。
-    // SSE 只是加速；輪詢確保即使 SSE 斷線/收不到，狀態仍自動更新。
-    pollTimer = setInterval(snapshot, POLL_MS);
-    if (sseOk) snapshot();
+    let es: EventSource | null = null;
+    try {
+      es = new EventSource(`/api/live/meeting/${meetingId}/stream`);
+      es.addEventListener("connected", scheduleSnapshot);
+      es.addEventListener("CHANGED", scheduleSnapshot);
+      es.onerror = () => {
+        /* SSE 異常：輪詢仍在背景跑，最多慢 3 秒 */
+      };
+    } catch {
+      /* EventSource 不可用：純輪詢 */
+    }
+
+    const pollTimer = setInterval(snapshot, POLL_MS);
+    snapshot();
 
     return () => {
       cancelled = true;
-      esRef.current?.close();
-      esRef.current = null;
-      if (pollTimer) clearInterval(pollTimer);
+      es?.close();
+      if (debounce) clearTimeout(debounce);
+      clearInterval(pollTimer);
     };
   }, [meetingId, enabled]);
 
   return { data, error };
-}
-
-// 把單一 motion 的事件（或初始 connected 的快照）合併進現有 state（不可變更新）。
-function mergeMotion(state: LiveState, motion: LiveMotion): LiveState {
-  let found = false;
-  const agenda = state.agenda.map((a) => {
-    if (!a.motions.some((m) => m.id === motion.id)) return a;
-    found = true;
-    return { ...a, motions: a.motions.map((m) => (m.id === motion.id ? { ...m, ...motion } : m)) };
-  });
-  if (!found) return state; // 議程不在現有快照裡，由下一次 snapshot 補齊
-  return {
-    ...state,
-    agenda,
-    current: agenda.find((a) => a.motions.some((m) => m.id === motion.id)) ?? state.current,
-  };
-}
-
-function setMotionStatus(state: LiveState, motionId: number, status: string): LiveState {
-  let found = false;
-  const agenda = state.agenda.map((a) => {
-    if (!a.motions.some((m) => m.id === motionId)) return a;
-    found = true;
-    return { ...a, motions: a.motions.map((m) => (m.id === motionId ? { ...m, status } : m)) };
-  });
-  if (!found) return state;
-  return { ...state, agenda };
 }

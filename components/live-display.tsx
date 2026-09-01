@@ -53,7 +53,7 @@ export function LiveDisplay({ meetingId }: { meetingId: number }) {
                   {current.motions.map((m) => {
                     const open = m.status === "open";
                     const closed = m.status === "closed";
-                    const ballots = (m as { ballots?: { voter_email: string; vote_status: string }[] }).ballots ?? [];
+                    const ballots = m.ballots ?? [];
                     const zh: Record<string, string> = { agree: "同意", against: "不同意" };
                     return (
                       <div key={m.id} className="rounded-2xl border-4 border-foreground bg-tone-green-bg p-6">
