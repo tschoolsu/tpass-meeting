@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLiveState, type LiveAgendaItem, type LiveBallot, type LiveParticipant } from "@/components/live-polling";
 import { motionLabel } from "@/lib/meeting-status";
 import { displayName } from "@/lib/names";
+import { MotionOutcomeLine } from "@/components/motion-outcome";
 import { DisplayChairBar } from "@/components/display-chair-bar";
 
 // C-4：快照只帶計數；已結算案的「各人意見」在這裡按需載入一次
@@ -161,6 +162,11 @@ export function LiveDisplay({ meetingId, canControl = false }: { meetingId: numb
                             {motionLabel(m.status)}
                           </span>
                         </div>
+                        {open || closed ? (
+                          <div className="mt-4">
+                            <MotionOutcomeLine motion={m} live={{ present: checked, expected: total }} size="lg" />
+                          </div>
+                        ) : null}
                         {open || closed ? (
                           <div className="mt-5 grid grid-cols-2 gap-4 text-center">
                             <div className="rounded-2xl border-2 border-foreground bg-primary p-4">

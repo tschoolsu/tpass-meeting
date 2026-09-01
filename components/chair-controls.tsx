@@ -11,6 +11,7 @@ import {
 } from "@/lib/actions";
 import { Badge, Button, Card } from "tpass-ui";
 import { motionLabel } from "@/lib/meeting-status";
+import { MotionOutcomeLine } from "@/components/motion-outcome";
 import type { OutcomeSource } from "@/lib/threshold";
 
 export function ChairControls({
@@ -159,8 +160,8 @@ export function ChairControls({
                           )}
                         </span>
                         {m.status !== "" ? (
-                          <span className="basis-full font-mono text-xs font-bold text-muted-foreground">
-                            同意 {m.agree}／不同意 {m.against}
+                          <span className="basis-full">
+                            <MotionOutcomeLine motion={m} live={{ present, expected }} />
                           </span>
                         ) : null}
                       </li>

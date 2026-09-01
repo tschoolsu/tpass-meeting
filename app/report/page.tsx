@@ -3,7 +3,7 @@ import { isModerator, requireAccess } from "@/lib/auth";
 import { canViewMeeting, getMeetingDetail, isParticipant } from "@/lib/meetings";
 import { getMeetingBallots } from "@/lib/agenda";
 import { formatTaipei } from "@/lib/time";
-import { thLabel } from "@/lib/threshold";
+import { motionOutcome, RESULT_LABEL, thLabel } from "@/lib/threshold";
 import { derivePhase, MANAGE_PHASE_META, motionLabel } from "@/lib/meeting-status";
 import { PrintButton } from "@/components/print-button";
 import { meetingMetadata } from "@/lib/page-title";
@@ -121,6 +121,12 @@ export default async function ReportPage({
                   </p>
                   <p className="meta" style={{ margin: "2px 0 6px" }}>
                     同意 {m.agree} / 不同意 {m.against}
+                    {(() => {
+                      const o = motionOutcome(m, { present: checkedCount, expected: participants.length });
+                      return o && m.status === "closed"
+                        ? <>　<b>結果：</b>{RESULT_LABEL[o.result]}（{o.reason}；應到 {o.expected}）</>
+                        : null;
+                    })()}
                   </p>
                   <table>
                     <thead>

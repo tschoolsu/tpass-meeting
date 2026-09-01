@@ -16,7 +16,7 @@
 - **具名投票紀錄 `/ballots?meetingId=`**：完整列出每位應出席學生的投票狀態（同意／不同意／未投票），支援**年級篩選**，全程公開透明並計入會議紀錄匯出（需求 4）。
 - **大螢幕投放 `/display?id=`**：適合投影機的大字體即時頁面，顯示當前議程、應到／實到人數、表決即時票數與**通過／不通過／出席不足**（需求 5）。建立者／admin 登入時底部多一條可收合的主席控制列（開放／停止表決、上一案／下一案）。
 - **即時機制**：所有會議相關頁面（`/read`、`/manage`、`/chair`、`/checkin`、`/ballots`、`/vote`、`/display`）都掛 `MeetingLive`：**SSE**（`/api/live/meeting/:id/stream`）只送 `CHANGED` 訊號，收到就重抓快照（`/api/live/meeting/:id`，唯一事實來源），另有輪詢兜底（SSE 健康時 30 秒一次保險，SSE 斷線或 60 秒沒 heartbeat 才降到 3 秒）。有 open 且自己（已簽到）還沒投的表決案就彈窗，換頁／重整不會吞掉。
-- **通過判定**（停止表決時寫入快照；**畫面上不顯示**，只顯示同意／不同意票數——結果存 DB、v1 results API 回傳）：「出席 X」＝已簽到／應到 ≥ X，不足即無效；「同意 Y」分母＝已簽到人數（未投視同不同意），簡單多數＝同意 > 出席/2；`3/4` 只看同意/出席。因此**未簽到不能投票**。規則在 `lib/threshold.ts`，有測試。
+- **通過判定**（停止表決時寫入快照）：「出席 X」＝已簽到／應到 ≥ X，不足即無效；「同意 Y」分母＝已簽到人數（未投視同不同意），簡單多數＝同意 > 出席/2；`3/4` 只看同意/出席。因此**未簽到不能投票**。規則在 `lib/threshold.ts`，有測試。
 - **名字**（三層退回）：名單用 email 邀請；① 對方登入簽到／投票後用 JWT 的 `name` 回填 DB → ② 還沒登入的人查主機上 gitignore 的 `name-map.csv`（`mail,name`，路徑可用 `MAIL_NAME_CSV` 改；`lib/name-map.ts`）→ ③ 都沒有才顯示 email。填補在資料層（`getMeetingDetail` / `getMeetingBallots` / `getMotionResults` / `listMeetingEditors`），頁面一律用 `lib/names.ts` 的 `displayName`。
 - **簽到 `/checkin?id=`**：圓形簽到按鈕；建立者、admin 與被授權的協作者額外看到**年級篩選**的代簽到面板（需求 1d）。
 - **管理面板 `/panel`（僅 admin）**：部會清單、匯出／匯入全部會議紀錄（含議程、議案、具名票）、BGM、API 金鑰。
