@@ -12,7 +12,10 @@
 - **主席控制台 `/chair?id=`**：開會時的即時操作——設現行議程、對表決案「開始表決／停止並宣佈結果」（需求：會議主席控制台）。
 - **具名表決 `/vote?id=<motionId>`**：只允許會議開始後、且主席開放該表決案時投票；可投**同意／不同意**，送出後不可更改。未開始前畫面鎖定，主席一開放即自動解鎖（需求：實時同步、Anti-Blackbox）。
 - **具名投票紀錄 `/ballots?meetingId=`**：完整列出每位應出席學生的投票狀態（同意／不同意／未投票），支援**年級篩選**，全程公開透明並計入會議紀錄匯出（需求 4）。
-- **大螢幕投放 `/display?id=`**：適合投影機的大字體即時頁面，顯示當前議程、應到／實到人數、表決即時票數（需求 5）。前端以 **SSE**（`/api/live/meeting/:id/stream`）訂閱，主席一「開啟表決」即收到 `VOTE_STARTED` 事件自動渲染，無需手動重整；SSE 失效時自動降級為輪詢。
+- **大螢幕投放 `/display?id=`**：適合投影機的大字體即時頁面，顯示當前議程、應到／實到人數、表決即時票數與**通過／不通過／出席不足**（需求 5）。建立者／admin 登入時底部多一條可收合的主席控制列（開放／停止表決、上一案／下一案）。
+- **即時機制**：所有會議相關頁面（`/read`、`/manage`、`/chair`、`/checkin`、`/ballots`、`/vote`、`/display`）都掛 `MeetingLive`：**SSE**（`/api/live/meeting/:id/stream`）只送 `CHANGED` 訊號，收到就重抓快照（`/api/live/meeting/:id`，唯一事實來源），另固定 3 秒輪詢兜底。有 open 且自己（已簽到）還沒投的表決案就彈窗，換頁／重整不會吞掉。
+- **通過判定**（停止表決時寫入快照）：「出席 X」＝已簽到／應到 ≥ X，不足即無效；「同意 Y」分母＝已簽到人數（未投視同不同意），簡單多數＝同意 > 出席/2；`3/4` 只看同意/出席。因此**未簽到不能投票**。規則在 `lib/threshold.ts`，有測試。
+- **名字**：名單用 email 邀請，對方登入簽到／投票後用 JWT 的 `name` 回填；畫面一律顯示名字，還沒登入過的人才顯示 email。
 - **簽到 `/checkin?id=`**：圓形簽到按鈕；建立者、admin 與被授權的協作者額外看到**年級篩選**的代簽到面板（需求 1d）。
 - **管理面板 `/panel`（僅 admin）**：部會清單、匯出／匯入全部會議紀錄（含議程、議案、具名票）、BGM、API 金鑰。
 - **Email 通知**：工作台按「發布並通知」時（只在第一次發布）對所有受邀人寄送通知（含時間、地點、線上連結與會議連結），經背景佇列派送並自動重試（需求 6）。未設定 SMTP 則略過。
@@ -28,7 +31,7 @@ API key 於管理面板建立（只顯示一次，DB 只存 SHA-256 雜湊）。
 | `GET` | `/api/v1/meetings/:id/checkins` | 已簽到／未簽到清單 |
 | `GET` | `/api/v1/votes/:motionId/results` | 表決結果（motion 的同意／不同意人數與門檻判定） |
 | `GET` | `/api/live/meeting/:id` | 大螢幕／投票輪詢用的即時會議狀態（議程、票數） |
-| `GET` | `/api/live/meeting/:id/stream` | **SSE** 即時推播（登入後訂閱）：`VOTE_STARTED`／`VOTE_CLOSED`／`heartbeat`／`connected` |
+| `GET` | `/api/live/meeting/:id/stream` | **SSE**（登入後訂閱）：`CHANGED`（有東西變了，去重抓快照）／`heartbeat`／`connected` |
 
 > **部署注意（SSE／nginx）**：此 SSE 端點必須關閉 **nginx proxy buffering**，否則事件會被緩衝、要連線中斷才 flush（使用者只好手動 F5）。nginx 對應 `location` 需設 `proxy_buffering off;` 並拉長 `proxy_read_timeout`（見伺服器 `/etc/nginx/sites-available/meeting`）。
 

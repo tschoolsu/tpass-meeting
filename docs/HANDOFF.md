@@ -74,6 +74,25 @@ A＝建立者（moderator）、B＝受邀學生（default）、C＝另一個 mod
 1. 授權前開 `/read?id=N` 看不到 NoteBar、`/checkin` 看不到代簽到面板；A 在 ④ 授權 C 後兩者都出現。
 2. C 開 `/manage?id=N` → 403。
 
+## 2026-09-01 晚間：實測回饋修正（8 點）
+
+部長實測後回報，全部做完（8 顆 commit，`590873a`…）。要點：
+
+- **漏通知的根因**是三件事疊加：`startVote` 把同議程未開放的案也打成 closed（第二案永遠開不了）、彈窗只掛在 `/read`、彈窗 mount 時把當下 open 的案標成「看過」。現在彈窗條件完全由快照推導（open ＋ 我已簽到 ＋ 我未投），`MeetingLive` 掛在所有會議頁。
+- SSE 改成單一 `CHANGED` 訊號 → client 重抓快照；刪掉局部合併。快照多了 `me`（受邀／簽到／投過哪些案）與結算欄位。
+- 通過判定規則見 README；`motions` 多 `opened_at/closed_at/present_count/expected_count/result`，舊的 closed 案沒快照時用即時出席數推算。
+- **未簽到不能投票**（門檻分母是已簽到數）。
+- `participants.name` / `ballots.voter_name` / `meeting_editors.name` 登入時回填；UI 用 `displayName`。
+- 刪除會議：action 內的 `redirect` 會讓 client promise reject → 之前對話框「按了沒反應」。現在導頁交給 `ConfirmActionButton.navigateTo`，附件檔會清，首頁卡片有刪除。
+- `hasOpenMotion` 的 SQL 少引號，之前按「結束會議」直接爆例外。
+- session email 統一小寫（名單本來就小寫，之前大小寫不同會讓受邀判定全失敗）。
+
+手動劇本補三條：一個議程放兩案 → 開第 1 案停止 → **第 2 案能開**；B 停在 `/ballots` 時 A 開表決 → B 在該頁彈窗；`/display` 用 A 登入右下角有「主席控制 ▲」。
+
 ## 已知缺口（這輪不做）
 
-- **既有資料全是 `draft`**：部署後手動跑 `UPDATE meetings SET status=closed WHERE status=draft AND starts_at < now() - interval 1
+- **既有資料全是 `draft`**：部署後手動跑 `UPDATE meetings SET status='closed' WHERE status='draft' AND starts_at < now() - interval '1 day'`（把過期的舊草稿收掉，不然首頁一堆「籌備中」）。
+- **背景分頁收不到通知**：手機鎖屏或切到別的 App 時瀏覽器會斷 SSE、節流 timer，回到頁面前不會彈窗。要做就是 Web Push／`Notification`，這輪沒做。
+- **協作者不能撤銷**（工作台 ④ 只能授權）。
+- **學生自建會議的開關**（`ALLOW_STUDENT_CREATE`）沒有 UI 測過。
+- **棄權**：ballots 只有同意／不同意，未投視同不同意。
