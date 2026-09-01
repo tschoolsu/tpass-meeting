@@ -34,14 +34,14 @@ API key 於管理面板建立（只顯示一次，DB 只存 SHA-256 雜湊）。
 
 ### 身分驗證（兩種方式擇一）
 
-用 `Authorization: Bearer <apikey>` 標頭，或網址帶 `?apikey=<apikey>`：
+用 `Authorization: Bearer <apikey>` 標頭，或（**僅當設定 `ALLOW_API_KEY_QUERY=true` 時**）網址帶 `?apikey=<apikey>`：
+
+> **安全建議**：金鑰不建議經由 URL query 傳遞（會洩漏至 access log、瀏覽器歷史與 Referer），正式環境請一律使用 `Authorization` 標頭；預設不啟用 query 方式。
 
 ```bash
-# 標頭方式
+# 標頭方式（建議）
 curl https://meeting.tschoolsu.org/api/v1/meetings/1 \
   -H "Authorization: Bearer tpm_xxxxxxxx"
-# 網址方式
-curl "https://meeting.tschoolsu.org/api/v1/meetings/1?apikey=tpm_xxxxxxxx"
 ```
 
 金鑰無效或遺漏時回傳 `401 {"error":"..."}`。

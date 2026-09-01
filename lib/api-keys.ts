@@ -54,12 +54,17 @@ export async function authenticateApiKey(key: string): Promise<{ id: number; lab
 }
 
 // 從 Authorization: Bearer 或 ?apikey= 取出金鑰。
+// SEC-005：金鑰不建議經由 URL query 傳遞（會洩漏至 access log／Referer），
+// 僅在設定 ALLOW_API_KEY_QUERY=true 時才接受 query 方式。
 export function extractKey(req: Request): string | null {
   const auth = req.headers.get("authorization") ?? "";
   if (auth.toLowerCase().startsWith("bearer ")) {
     const v = auth.slice(7).trim();
     if (v) return v;
   }
-  const qp = new URL(req.url).searchParams.get("apikey");
-  return qp?.trim() || null;
+  if (process.env.ALLOW_API_KEY_QUERY === "true") {
+    const qp = new URL(req.url).searchParams.get("apikey");
+    return qp?.trim() || null;
+  }
+  return null;
 }
