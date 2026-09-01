@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   nextAgendaItemAction,
+  prevAgendaItemAction,
   setCurrentAgendaItemAction,
   startVoteAction,
   stopVoteAction,
@@ -58,10 +59,10 @@ export function ChairControls({
     else router.refresh();
   }
 
-  async function next() {
-    setPending({ type: "next", id: 0 });
+  async function step(dir: "prev" | "next") {
+    setPending({ type: dir, id: 0 });
     setError(null);
-    const res = await nextAgendaItemAction(meetingId);
+    const res = dir === "next" ? await nextAgendaItemAction(meetingId) : await prevAgendaItemAction(meetingId);
     setPending(null);
     if (res.error) setError(res.error);
     else router.refresh();
@@ -73,7 +74,10 @@ export function ChairControls({
         <h2 className="text-lg font-extrabold">主席控制台</h2>
         <div className="flex items-center gap-2">
           <Badge className="bg-tone-green-badge">{current ? `現行：${current.title}` : "尚未選定現行議程"}</Badge>
-          <Button variant="accent" size="sm" disabled={pending?.type === "next"} onClick={next}>
+          <Button size="sm" disabled={pending !== null} onClick={() => step("prev")}>
+            上一案
+          </Button>
+          <Button variant="accent" size="sm" disabled={pending !== null} onClick={() => step("next")}>
             下一案
           </Button>
         </div>

@@ -130,8 +130,8 @@ export async function setCurrentAgendaItem(meetingId: number, agendaItemId: numb
   return rowCount > 0;
 }
 
-// 把現行議程移到下一筆；到最後一筆時回傳 false（不循環）。
-export async function nextAgendaItem(meetingId: number): Promise<boolean> {
+// 把現行議程往前／往後移一筆；到頭時回傳 false（不循環）。沒設現行時「下一案」從第一筆開始。
+async function stepAgendaItem(meetingId: number, dir: 1 | -1): Promise<boolean> {
   const { rows } = await query<{ id: number; position: number }>(
     `SELECT id, position FROM agenda_items WHERE meeting_id = $1 ORDER BY position ASC, id ASC`,
     [meetingId],
@@ -143,11 +143,14 @@ export async function nextAgendaItem(meetingId: number): Promise<boolean> {
   );
   const currentId = m[0]?.current_agenda_item_id ?? null;
   const idx = rows.findIndex((r) => r.id === currentId);
-  const nextIdx = idx < 0 ? 0 : idx + 1;
-  if (nextIdx >= rows.length) return false;
-  await query(`UPDATE meetings SET current_agenda_item_id = $1 WHERE id = $2`, [rows[nextIdx].id, meetingId]);
+  const target = idx < 0 ? (dir === 1 ? 0 : -1) : idx + dir;
+  if (target < 0 || target >= rows.length) return false;
+  await query(`UPDATE meetings SET current_agenda_item_id = $1 WHERE id = $2`, [rows[target].id, meetingId]);
   return true;
 }
+
+export const nextAgendaItem = (meetingId: number) => stepAgendaItem(meetingId, 1);
+export const prevAgendaItem = (meetingId: number) => stepAgendaItem(meetingId, -1);
 
 // 結算一案（同一 transaction 內）：鎖列、以「當下」的已簽到／應到與票數判定，寫回快照。
 // 只結算 open 的案；不是 open 回 null。

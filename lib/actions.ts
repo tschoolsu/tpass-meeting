@@ -40,6 +40,7 @@ import {
   deleteMotion,
   moveAgendaItem,
   nextAgendaItem,
+  prevAgendaItem,
   setCurrentAgendaItem,
   startVote,
   stopVote,
@@ -319,6 +320,18 @@ export async function nextAgendaItemAction(meetingId: number): Promise<FormState
   revalidatePath(`/chair?id=${meetingId}`);
   revalidatePath(`/display?id=${meetingId}`);
   return { hasNext };
+}
+
+export async function prevAgendaItemAction(meetingId: number): Promise<FormState & { hasPrev?: boolean }> {
+  const session = await requireManager();
+  const ok = await canEditMeeting(meetingId, session);
+  if (!ok) return { error: "你沒有權限控制這份會議" };
+  const hasPrev = await prevAgendaItem(meetingId);
+  await notifyMeetingChanged(meetingId, "agenda-current");
+  revalidatePath(`/read?id=${meetingId}`);
+  revalidatePath(`/chair?id=${meetingId}`);
+  revalidatePath(`/display?id=${meetingId}`);
+  return { hasPrev };
 }
 
 // ---- 具名表決（需求 4） ----

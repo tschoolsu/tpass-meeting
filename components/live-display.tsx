@@ -4,8 +4,9 @@ import { useLiveState } from "@/components/live-polling";
 import { motionLabel } from "@/lib/meeting-status";
 import { displayName } from "@/lib/names";
 import { MotionOutcomeLine } from "@/components/motion-outcome";
+import { DisplayChairBar } from "@/components/display-chair-bar";
 
-export function LiveDisplay({ meetingId }: { meetingId: number }) {
+export function LiveDisplay({ meetingId, canControl = false }: { meetingId: number; canControl?: boolean }) {
   const { data, error } = useLiveState(meetingId);
 
   if (error) {
@@ -29,7 +30,7 @@ export function LiveDisplay({ meetingId }: { meetingId: number }) {
   const total = data.total;
 
   return (
-    <div className="flex min-h-screen flex-col justify-between gap-10 bg-background p-10 sm:p-14">
+    <div className={`flex min-h-screen flex-col justify-between gap-10 bg-background p-10 sm:p-14 ${canControl ? "pb-28" : ""}`}>
       <header className="text-center">
         <h1 className="text-4xl font-extrabold leading-tight sm:text-6xl">
           {data.meeting.title}
@@ -132,6 +133,7 @@ export function LiveDisplay({ meetingId }: { meetingId: number }) {
       <footer className="text-center font-mono text-lg font-bold text-muted-foreground">
         應到 {total} · 實到 {checked}
       </footer>
+      {canControl ? <DisplayChairBar meetingId={meetingId} data={data} /> : null}
     </div>
   );
 }
