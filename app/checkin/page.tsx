@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
-import { isAdmin, isModerator, requireAccess } from "@/lib/auth";
-import { getCheckInState, getMeeting, getMeetingDetail, isParticipant } from "@/lib/meetings";
+import { isAdmin, requireAccess } from "@/lib/auth";
+import { canWriteNotes, getCheckInState, getMeeting, getMeetingDetail, isParticipant } from "@/lib/meetings";
 import { CheckinButton } from "@/components/checkin-button";
 import { StaffCheckin } from "@/components/staff-checkin";
 import { formatTaipei, isStarted } from "@/lib/time";
@@ -27,7 +27,8 @@ export default async function CheckinPage({
 
   const invited = await isParticipant(id, session.email);
   const started = isStarted(meeting.starts_at);
-  const isManager = isAdmin(session) || isModerator(session);
+  // 代簽到面板：admin、建立者、或被授權的協作者（與 staffCheckInAction 的檢查一致）。
+  const canStaff = await canWriteNotes(meeting, session, isAdmin(session));
 
   return (
     <div className="mx-auto max-w-lg">
@@ -67,7 +68,7 @@ export default async function CheckinPage({
         </Card>
       )}
 
-      {isManager ? (
+      {canStaff ? (
         <div className="mt-8">
           <StaffCheckin
             meetingId={id}
