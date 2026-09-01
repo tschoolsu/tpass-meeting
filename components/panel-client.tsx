@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
-import type { ReactNode } from "react";
+import { useActionState, useRef, useState, useTransition } from "react";
+import type { ComponentProps, FormEvent, ReactNode } from "react";
+import { Badge, Button, Card, ConfirmDialog, Input, Label } from "tpass-ui";
 import {
   clearBgmAction,
   createApiKeyAction,
@@ -10,7 +11,8 @@ import {
   uploadBgmAction,
 } from "@/lib/actions";
 import type { ApiKeyRow } from "@/lib/api-keys";
-import { Button, Card, FileInput, Input } from "@/components/ui";
+import { FileInput } from "@/components/file-input";
+import { LinkButton } from "@/components/link-button";
 
 const init = { error: undefined as string | undefined };
 
@@ -68,7 +70,7 @@ function SectionCard({
   children: ReactNode;
 }) {
   return (
-    <Card className="gap-0">
+    <Card>
       <div className="flex items-start gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 border-foreground bg-secondary shadow-[2px_2px_0_0_var(--color-foreground)]">
           {icon}
@@ -89,7 +91,7 @@ function Banner({ tone, children }: { tone: "ok" | "error"; children: ReactNode 
       role={tone === "error" ? "alert" : "status"}
       className={
         tone === "ok"
-          ? "mt-3 rounded-xl border-2 border-foreground bg-tone-bg px-4 py-2.5 text-sm font-bold text-tone-text"
+          ? "mt-3 rounded-xl border-2 border-foreground bg-tone-green-bg px-4 py-2.5 text-sm font-bold text-tone-green-text"
           : "mt-3 rounded-xl border-2 border-destructive bg-destructive/10 px-4 py-2.5 text-sm font-bold text-destructive"
       }
     >
@@ -101,17 +103,71 @@ function Banner({ tone, children }: { tone: "ok" | "error"; children: ReactNode 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <button
+    <Button
       type="button"
+      size="sm"
+      className="shrink-0"
       onClick={async () => {
         await navigator.clipboard.writeText(text);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border-2 border-foreground bg-card px-3 py-1.5 text-xs font-bold shadow-[2px_2px_0_0_var(--color-foreground)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[3px_3px_0_0_var(--color-foreground)]"
     >
       {copied ? "✓ 已複製" : "複製"}
-    </button>
+    </Button>
+  );
+}
+
+// 表單送出前先問一次（ConfirmDialog），確認後才真的送。
+// 用 ref 記「已確認」，requestSubmit 再次觸發 onSubmit 時直接放行。
+function ConfirmedForm({
+  ask,
+  title,
+  description,
+  confirmLabel,
+  children,
+  ...formProps
+}: Omit<ComponentProps<"form">, "ref" | "onSubmit" | "title"> & {
+  /** false 時不問，直接送。 */
+  ask: boolean;
+  title: string;
+  description: ReactNode;
+  confirmLabel: string;
+}) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const confirmed = useRef(false);
+  const [open, setOpen] = useState(false);
+
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    if (confirmed.current) {
+      confirmed.current = false;
+      return;
+    }
+    if (!ask) return;
+    e.preventDefault();
+    setOpen(true);
+  }
+
+  function onConfirm() {
+    setOpen(false);
+    confirmed.current = true;
+    formRef.current?.requestSubmit();
+  }
+
+  return (
+    <>
+      <form ref={formRef} onSubmit={onSubmit} {...formProps}>
+        {children}
+      </form>
+      <ConfirmDialog
+        open={open}
+        title={title}
+        description={description}
+        confirmLabel={confirmLabel}
+        onConfirm={onConfirm}
+        onCancel={() => setOpen(false)}
+      />
+    </>
   );
 }
 
@@ -126,14 +182,10 @@ function ExportCard({ meetingCount }: { meetingCount: number }) {
     >
       <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm font-medium text-muted-foreground">匯出不會刪除任何資料，可放心使用。</p>
-        <a
-          href="/api/admin/export"
-          download
-          className="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-foreground bg-primary px-4 py-2.5 font-bold text-primary-foreground shadow-[3px_3px_0_0_var(--color-foreground)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_0_var(--color-foreground)] active:translate-y-0 active:shadow-[2px_2px_0_0_var(--color-foreground)]"
-        >
+        <LinkButton href="/api/admin/export" download variant="primary">
           <IconDownload />
           匯出 JSON 檔
-        </a>
+        </LinkButton>
       </div>
     </SectionCard>
   );
@@ -148,19 +200,13 @@ function ImportCard({ meetingCount }: { meetingCount: number }) {
       title="匯入並取代會議紀錄"
       desc="從 JSON 檔還原會議紀錄。這個動作會把現有的紀錄全部取代，建議先匯出備份再操作。"
     >
-      <form
+      <ConfirmedForm
         action={formAction}
-        onSubmit={(e) => {
-          if (
-            meetingCount > 0 &&
-            !window.confirm(
-              `確定要匯入嗎？這會刪除目前 ${meetingCount} 場會議，並以檔案內容取代。`,
-            )
-          ) {
-            e.preventDefault();
-          }
-        }}
         className="flex flex-col gap-3"
+        ask={meetingCount > 0}
+        title="確定要匯入嗎？"
+        description={`這會刪除目前 ${meetingCount} 場會議，並以檔案內容取代。`}
+        confirmLabel="匯入並取代"
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <FileInput name="file" accept="application/json,.json" className="sm:max-w-sm" />
@@ -171,7 +217,7 @@ function ImportCard({ meetingCount }: { meetingCount: number }) {
         <p className="text-xs font-medium text-muted-foreground">
           僅接受管理面板匯出的 JSON 檔案（最多 10 MB）。
         </p>
-      </form>
+      </ConfirmedForm>
       {state.count !== undefined ? (
         <Banner tone="ok">已成功匯入 {state.count} 場會議，並已取代舊紀錄。</Banner>
       ) : null}
@@ -189,12 +235,13 @@ function BgmCard({ hasBgm, bgmSize }: { hasBgm: boolean; bgmSize: number | null 
   const [state, formAction, pending] = useActionState(uploadBgmAction, init);
   const [clearing, startClear] = useTransition();
   const [cleared, setCleared] = useState(false);
+  const [askClear, setAskClear] = useState(false);
 
   function clear() {
-    if (!window.confirm("確定要清除背景音樂嗎？清除後會議閱讀器就不再播放 BGM。")) return;
     startClear(async () => {
       await clearBgmAction();
       setCleared(true);
+      setAskClear(false);
     });
   }
 
@@ -212,25 +259,33 @@ function BgmCard({ hasBgm, bgmSize }: { hasBgm: boolean; bgmSize: number | null 
             : "尚未上傳，會議還沒有背景音樂"}
         </strong>
       </div>
-      <form
+      <ConfirmedForm
         action={formAction}
-        onSubmit={(e) => {
-          if (hasBgm && !window.confirm("確定要更換背景音樂嗎？舊的 mp3 會被覆蓋。")) {
-            e.preventDefault();
-          }
-        }}
         className="flex flex-col gap-3 sm:flex-row sm:items-center"
+        ask={hasBgm}
+        title="確定要更換背景音樂嗎？"
+        description="舊的 mp3 會被覆蓋。"
+        confirmLabel="更換"
       >
         <FileInput name="bgm" accept="audio/mpeg,.mp3" className="sm:max-w-sm" />
         <Button type="submit" variant="primary" disabled={pending || clearing}>
           {pending ? "上傳中…" : hasBgm ? "更換音樂" : "上傳音樂"}
         </Button>
         {hasBgm ? (
-          <Button variant="destructive" onClick={clear} disabled={pending || clearing}>
+          <Button type="button" variant="destructive" onClick={() => setAskClear(true)} disabled={pending || clearing}>
             {clearing ? "清除中…" : "清除 BGM"}
           </Button>
         ) : null}
-      </form>
+      </ConfirmedForm>
+      <ConfirmDialog
+        open={askClear}
+        title="確定要清除背景音樂嗎？"
+        description="清除後會議閱讀器就不再播放 BGM。"
+        confirmLabel="清除"
+        pending={clearing}
+        onConfirm={clear}
+        onCancel={() => setAskClear(false)}
+      />
       {state.saved ? <Banner tone="ok">BGM 已更新，新的會議閱讀器就會使用它。</Banner> : null}
       {cleared ? <Banner tone="ok">BGM 已清除，會議閱讀器將不再播放背景音樂。</Banner> : null}
       {state.error ? <Banner tone="error">{state.error}</Banner> : null}
@@ -243,6 +298,8 @@ function ApiKeysCard({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<{ key: string; row: ApiKeyRow } | null>(null);
+  const [removing, setRemoving] = useState<ApiKeyRow | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   function createKey(formData: FormData) {
     const label = String(formData.get("label") ?? "").trim();
@@ -263,11 +320,13 @@ function ApiKeysCard({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
     });
   }
 
-  async function remove(id: number) {
-    if (!window.confirm("確定要刪除這把 API key 嗎？刪除後立即失效，無法復原。")) return;
+  function remove() {
+    const target = removing;
+    if (!target) return;
     startTransition(async () => {
-      await deleteApiKeyAction(id);
-      setKeys((prev) => prev.filter((k) => k.id !== id));
+      await deleteApiKeyAction(target.id);
+      setKeys((prev) => prev.filter((k) => k.id !== target.id));
+      setRemoving(null);
     });
   }
 
@@ -278,17 +337,17 @@ function ApiKeysCard({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
       desc="供外部程式呼叫 /api/v1/*。建立後只顯示一次，請立刻複製保存。"
     >
       <form
+        ref={formRef}
         action={(fd: FormData) => {
           createKey(fd);
-          (document.getElementById("apikey-form") as HTMLFormElement | null)?.reset();
+          formRef.current?.reset();
         }}
-        id="apikey-form"
         className="flex flex-col gap-3"
       >
         <div>
-          <label htmlFor="apikey-label" className="mb-1.5 block text-sm font-extrabold">
+          <Label htmlFor="apikey-label" className="mb-1.5">
             金鑰名稱
-          </label>
+          </Label>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Input
               id="apikey-label"
@@ -304,19 +363,15 @@ function ApiKeysCard({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
       </form>
 
       {created ? (
-        <div className="mt-4 rounded-xl border-2 border-foreground bg-tone-bg p-4">
+        <div className="mt-4 rounded-xl border-2 border-foreground bg-tone-green-bg p-4">
           <p className="text-sm font-extrabold">金鑰建立成功！請立即複製保存（只顯示這一次）</p>
           <div className="mt-2 flex items-center gap-2">
             <code className="min-w-0 flex-1 break-all font-mono text-xs font-bold">{created.key}</code>
             <CopyButton text={created.key} />
           </div>
-          <button
-            type="button"
-            onClick={() => setCreated(null)}
-            className="mt-3 text-xs font-bold text-muted-foreground underline-offset-2 hover:underline"
-          >
+          <Button type="button" variant="ghost" size="sm" className="mt-3" onClick={() => setCreated(null)}>
             我已保存，關閉提示
-          </button>
+          </Button>
         </div>
       ) : null}
 
@@ -328,16 +383,14 @@ function ApiKeysCard({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-extrabold">{k.label}</span>
-                <span className="rounded-md border-2 border-foreground bg-tone-badge px-2 py-0.5 font-mono text-[10px] font-bold">
-                  啟用中
-                </span>
+                <Badge className="bg-tone-green-badge">啟用中</Badge>
               </div>
               <div className="mt-0.5 font-mono text-[11px] font-bold text-muted-foreground">
                 建立於 {formatTime(k.created_at)}
                 {k.last_used_at ? ` · 上次使用 ${formatTime(k.last_used_at)}` : " · 尚未使用"}
               </div>
             </div>
-            <Button variant="destructive" onClick={() => remove(k.id)} disabled={pending} className="px-3 py-1.5 text-xs">
+            <Button type="button" variant="destructive" size="sm" onClick={() => setRemoving(k)} disabled={pending}>
               刪除
             </Button>
           </li>
@@ -348,6 +401,15 @@ function ApiKeysCard({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
           </li>
         ) : null}
       </ul>
+      <ConfirmDialog
+        open={removing !== null}
+        title={`確定要刪除「${removing?.label ?? ""}」嗎？`}
+        description="刪除後立即失效，無法復原。"
+        confirmLabel="刪除"
+        pending={pending}
+        onConfirm={remove}
+        onCancel={() => setRemoving(null)}
+      />
     </SectionCard>
   );
 }
@@ -368,8 +430,8 @@ export function PanelClient({
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border-2 border-foreground bg-tone-bg px-4 py-3">
-          <div className="font-mono text-xs font-bold text-tone-text">會議紀錄</div>
+        <div className="rounded-xl border-2 border-foreground bg-tone-green-bg px-4 py-3">
+          <div className="font-mono text-xs font-bold text-tone-green-text">會議紀錄</div>
           <div className="mt-1 font-mono text-2xl font-extrabold">{meetingCount} 場</div>
         </div>
         <div className="rounded-xl border-2 border-foreground bg-card px-4 py-3">

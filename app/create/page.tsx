@@ -4,16 +4,11 @@ import { getMeetingDetail } from "@/lib/meetings";
 import { toDatetimeLocal } from "@/lib/time";
 import { MeetingForm } from "@/components/meeting-form";
 import { canStudentCreate } from "@/lib/permissions";
-import { BtnLink, PageHeader } from "@/components/ui";
+import { serviceConfig } from "@/config/service";
+import { PageHeader } from "@/components/page-header";
+import { LinkButton } from "@/components/link-button";
 
 export const dynamic = "force-dynamic";
-
-function departments(): string[] {
-  return (process.env.DEPARTMENTS ?? "")
-    .split(",")
-    .map((d) => d.trim())
-    .filter(Boolean);
-}
 
 // /create 建立；/create?id={數字} 編輯既有會議。
 export default async function CreatePage({
@@ -66,9 +61,9 @@ export default async function CreatePage({
             ? "修改會議資訊；已完成的簽到紀錄會保留。議程與表決請至會議頁新增。"
             : "填寫會議資訊並邀請參與人，建立後可新增議程、表決並簽到。"
         }
-        right={<BtnLink href="/">← 返回首頁</BtnLink>}
+        right={<LinkButton href="/">← 返回首頁</LinkButton>}
       />
-      <MeetingForm departments={departments()} meetingId={meetingId} initial={initial} />
+      <MeetingForm departments={serviceConfig.departments} meetingId={meetingId} initial={initial} />
     </div>
   );
 }

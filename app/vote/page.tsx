@@ -1,11 +1,11 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAccess } from "@/lib/auth";
 import { isParticipant } from "@/lib/meetings";
 import { getMotion, getMotionFlow } from "@/lib/agenda";
 import { formatTaipei, isStarted } from "@/lib/time";
 import { MotionVote } from "@/components/motion-vote";
-import { Card } from "@/components/ui";
+import { Card } from "tpass-ui";
+import { LinkButton } from "@/components/link-button";
 
 export const dynamic = "force-dynamic";
 
@@ -36,12 +36,9 @@ export default async function VotePage({
         <Card className="w-full text-center shadow-[6px_6px_0_0_var(--color-foreground)]">
           <p className="font-mono text-4xl font-extrabold tracking-tighter text-primary">沒權限</p>
           <h1 className="mt-3 text-xl font-extrabold">你未被邀請參與這場會議的表決</h1>
-          <Link
-            href={`/read?id=${meeting.id}`}
-            className="mt-6 inline-flex rounded-xl border-2 border-foreground bg-accent/10 px-5 py-2.5 font-bold shadow-[3px_3px_0_0_var(--color-foreground)]"
-          >
+          <LinkButton href={`/read?id=${meeting.id}`} className="mt-6">
             ← 返回會議
-          </Link>
+          </LinkButton>
         </Card>
       </div>
     );
@@ -56,12 +53,9 @@ export default async function VotePage({
           <p className="mt-2 text-sm text-muted-foreground">
             會議將於 {formatTaipei(meeting.starts_at)}（UTC+8）開始，開始後主席會開放表決。
           </p>
-          <Link
-            href={`/read?id=${meeting.id}`}
-            className="mt-6 inline-flex rounded-xl border-2 border-foreground bg-accent/10 px-5 py-2.5 font-bold shadow-[3px_3px_0_0_var(--color-foreground)]"
-          >
+          <LinkButton href={`/read?id=${meeting.id}`} className="mt-6">
             ← 返回會議
-          </Link>
+          </LinkButton>
         </Card>
       </div>
     );

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import Link from "next/link";
+import { LinkButton } from "@/components/link-button";
 import { checkInAction } from "@/lib/actions";
 
 const PARTICLES = Array.from({ length: 14 }, (_, i) => {
@@ -118,12 +118,9 @@ export function CheckinButton({
       </div>
 
       {status === "done" ? (
-        <Link
-          href={`/read?id=${meetingId}`}
-          className="inline-flex items-center gap-1.5 rounded-xl border-2 border-foreground bg-accent px-6 py-3 text-base font-bold text-accent-foreground shadow-[4px_4px_0_0_var(--color-foreground)] transition-all duration-200 hover:-translate-y-0.5"
-        >
+        <LinkButton href={`/read?id=${meetingId}`} variant="accent">
           進入主畫面 →
-        </Link>
+        </LinkButton>
       ) : null}
 
       {error ? (

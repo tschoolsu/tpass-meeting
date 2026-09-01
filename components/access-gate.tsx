@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Button, Card } from "tpass-ui";
 
 // 警示（warning）權限的進入彈窗：每次進入都顯示，5 秒後才能關閉。
 export function AccessGate({ restriction, reason }: { restriction?: string; reason?: string }) {
@@ -21,9 +22,9 @@ export function AccessGate({ restriction, reason }: { restriction?: string; reas
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/85 p-4" role="dialog" aria-modal="true">
-      <div className="w-full max-w-md rounded-2xl border-2 border-foreground bg-card p-6 shadow-[6px_6px_0_0_var(--color-foreground)]">
+      <Card className="w-full max-w-md shadow-[6px_6px_0_0_var(--color-foreground)]">
         <div className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl border-2 border-foreground bg-destructive text-background shadow-[2px_2px_0_0_var(--color-foreground)]">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl border-2 border-foreground bg-destructive text-primary-foreground shadow-[2px_2px_0_0_var(--color-foreground)]">
             !
           </span>
           <h2 className="text-xl font-extrabold">系統提醒</h2>
@@ -35,15 +36,10 @@ export function AccessGate({ restriction, reason }: { restriction?: string; reas
           </div>
           <span className="shrink-0 font-mono text-xs font-bold">5s</span>
         </div>
-        <button
-          type="button"
-          onClick={() => setDismissed(true)}
-          disabled={!canClose}
-          className="mt-4 w-full rounded-xl border-2 border-foreground bg-card px-4 py-2.5 font-bold shadow-[3px_3px_0_0_var(--color-foreground)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_0_var(--color-foreground)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0 disabled:hover:shadow-[3px_3px_0_0_var(--color-foreground)]"
-        >
+        <Button type="button" onClick={() => setDismissed(true)} disabled={!canClose} className="mt-4 w-full">
           {canClose ? "關閉" : "請等待 5 秒…"}
-        </button>
-      </div>
+        </Button>
+      </Card>
     </div>
   );
 }

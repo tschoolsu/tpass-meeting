@@ -1,4 +1,4 @@
-import { Tag } from "@/components/ui";
+import { Badge, Card } from "tpass-ui";
 
 // 依 des.md 的 OKLCH 色票，以 SVG 畫圓餅圖，避免引入重量的圖表套件。
 export function PieChart({
@@ -23,10 +23,10 @@ export function PieChart({
   const rotate = -90;
 
   return (
-    <div className="rounded-2xl border-2 border-foreground bg-card p-5 shadow-[4px_4px_0_0_var(--color-foreground)]">
+    <Card>
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-extrabold leading-snug">{title}</h3>
-        {answeredByMe ? <Tag className="shrink-0 bg-tone-badge">已表決</Tag> : null}
+        {answeredByMe ? <Badge className="shrink-0 bg-tone-green-badge">已表決</Badge> : null}
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-6">
@@ -92,6 +92,6 @@ export function PieChart({
           </p>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

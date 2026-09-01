@@ -34,7 +34,7 @@ export function LiveDisplay({ meetingId }: { meetingId: number }) {
       </header>
 
       <section className="grid grid-cols-1 gap-8 sm:grid-cols-[1fr_auto] sm:items-stretch">
-        <div className="rounded-3xl border-4 border-foreground bg-card p-10 shadow-[12px_12px_0_0_var(--color-foreground)]">
+        <div className="rounded-2xl border-4 border-foreground bg-card p-10 shadow-[12px_12px_0_0_var(--color-foreground)]">
           {current ? (
             <>
               <p className="font-mono text-sm font-bold text-muted-foreground">
@@ -55,12 +55,12 @@ export function LiveDisplay({ meetingId }: { meetingId: number }) {
                     const ballots = (m as { ballots?: { voter_email: string; vote_status: string }[] }).ballots ?? [];
                     const zh: Record<string, string> = { agree: "同意", against: "不同意" };
                     return (
-                      <div key={m.id} className="rounded-3xl border-4 border-foreground bg-tone-bg p-6">
+                      <div key={m.id} className="rounded-2xl border-4 border-foreground bg-tone-green-bg p-6">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <h3 className="text-3xl font-extrabold">{m.title}</h3>
                           <span
-                            className={`rounded-full px-5 py-1 font-mono text-xl font-extrabold ${
-                              open ? "animate-pulse bg-accent text-background" : closed ? "bg-secondary" : "bg-tone-badge"
+                            className={`rounded-full border-2 border-foreground px-5 py-1 font-mono text-xl font-extrabold ${
+                              open ? "animate-pulse bg-accent text-primary-foreground" : closed ? "bg-secondary" : "bg-tone-green-badge"
                             }`}
                           >
                             {open ? "表決中" : closed ? "已結算" : "尚未開放"}
@@ -73,8 +73,8 @@ export function LiveDisplay({ meetingId }: { meetingId: number }) {
                               <div className="mt-1 font-mono text-xl font-bold text-primary-foreground/80">同意</div>
                             </div>
                             <div className="rounded-2xl border-2 border-foreground bg-destructive p-4">
-                              <div className="font-mono text-5xl font-extrabold text-background">{m.against}</div>
-                              <div className="mt-1 font-mono text-xl font-bold text-background/80">不同意</div>
+                              <div className="font-mono text-5xl font-extrabold text-primary-foreground">{m.against}</div>
+                              <div className="mt-1 font-mono text-xl font-bold text-primary-foreground/80">不同意</div>
                             </div>
                           </div>
                         ) : null}
@@ -85,10 +85,10 @@ export function LiveDisplay({ meetingId }: { meetingId: number }) {
                               {ballots.map((b) => (
                                 <li
                                   key={b.voter_email}
-                                  className="flex items-center justify-between rounded-lg border-2 border-foreground bg-tone-bg px-3 py-1.5"
+                                  className="flex items-center justify-between rounded-lg border-2 border-foreground bg-tone-green-bg px-3 py-1.5"
                                 >
                                   <span className="truncate text-lg font-bold">{b.voter_email}</span>
-                                  <span className="font-mono text-lg font-extrabold text-tone-text">
+                                  <span className="font-mono text-lg font-extrabold text-tone-green-text">
                                     {zh[b.vote_status] ?? b.vote_status}
                                   </span>
                                 </li>
@@ -108,11 +108,11 @@ export function LiveDisplay({ meetingId }: { meetingId: number }) {
         </div>
 
         <aside className="flex flex-row gap-6 sm:flex-col">
-          <div className="rounded-3xl border-4 border-foreground bg-card p-6 text-center shadow-[8px_8px_0_0_var(--color-foreground)]">
-            <div className="font-mono text-6xl font-extrabold text-tone-text">{checked}</div>
+          <div className="rounded-2xl border-4 border-foreground bg-card p-6 text-center shadow-[8px_8px_0_0_var(--color-foreground)]">
+            <div className="font-mono text-6xl font-extrabold text-tone-green-text">{checked}</div>
             <div className="mt-1 font-mono text-xl font-bold text-muted-foreground">實到</div>
           </div>
-          <div className="rounded-3xl border-4 border-foreground bg-card p-6 text-center shadow-[8px_8px_0_0_var(--color-foreground)]">
+          <div className="rounded-2xl border-4 border-foreground bg-card p-6 text-center shadow-[8px_8px_0_0_var(--color-foreground)]">
             <div className="font-mono text-6xl font-extrabold">{total}</div>
             <div className="mt-1 font-mono text-xl font-bold text-muted-foreground">應到</div>
           </div>

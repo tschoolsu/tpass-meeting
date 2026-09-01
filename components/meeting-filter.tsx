@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import type { MeetingListItem } from "@/lib/meetings";
 import { MeetingCard } from "@/components/meeting-card";
-import { EmptyState } from "@/components/ui";
+import { Input, Select } from "tpass-ui";
+import { EmptyState } from "@/components/empty-state";
 
 export function MeetingFilter({
   meetings,
@@ -33,27 +34,24 @@ export function MeetingFilter({
   return (
     <div>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row">
-        <input
+        <Input
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="搜尋會議標題、部會或建立者…"
           aria-label="搜尋會議"
-          className="w-full rounded-xl border-2 border-foreground bg-card px-4 py-2.5 text-sm font-medium placeholder:text-muted-foreground shadow-[2px_2px_0_0_var(--color-foreground)] focus:outline-none focus:ring-2 focus:ring-ring sm:flex-1"
+          className="sm:flex-1"
         />
-        <select
-          value={department}
-          onChange={(e) => setDepartment(e.target.value)}
-          aria-label="依部會篩選"
-          className="w-full rounded-xl border-2 border-foreground bg-card px-3 py-2.5 text-sm font-medium shadow-[2px_2px_0_0_var(--color-foreground)] focus:outline-none focus:ring-2 focus:ring-ring sm:w-52"
-        >
-          <option value="">全部部會</option>
-          {departments.map((d) => (
-            <option key={d} value={d}>
-              {d}
-            </option>
-          ))}
-        </select>
+        <div className="sm:w-52">
+          <Select value={department} onChange={(e) => setDepartment(e.target.value)} aria-label="依部會篩選">
+            <option value="">全部部會</option>
+            {departments.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </Select>
+        </div>
       </div>
 
       {filtered.length === 0 ? (

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { staffCheckInAction } from "@/lib/actions";
-import { Button, Card, Tag } from "@/components/ui";
+import { Badge, Button, Card } from "tpass-ui";
 
 export function StaffCheckin({
   meetingId,
@@ -39,22 +39,13 @@ export function StaffCheckin({
         <h2 className="text-lg font-extrabold">簽到管理（工作人員）</h2>
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-bold text-muted-foreground">年級：</span>
-          <button
-            type="button"
-            onClick={() => setGrade("")}
-            className={`rounded-lg border-2 border-foreground px-3 py-1 text-xs font-bold ${grade === "" ? "bg-accent text-background" : "bg-card"}`}
-          >
+          <Button type="button" size="sm" variant={grade === "" ? "accent" : "default"} onClick={() => setGrade("")}>
             全部
-          </button>
+          </Button>
           {grades.map((g) => (
-            <button
-              key={g}
-              type="button"
-              onClick={() => setGrade(g)}
-              className={`rounded-lg border-2 border-foreground px-3 py-1 text-xs font-bold ${grade === g ? "bg-accent text-background" : "bg-card"}`}
-            >
+            <Button key={g} type="button" size="sm" variant={grade === g ? "accent" : "default"} onClick={() => setGrade(g)}>
               {g}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -71,7 +62,7 @@ export function StaffCheckin({
               {p.grade ? <span className="ml-1.5 text-xs font-bold text-muted-foreground">[{p.grade}]</span> : null}
             </span>
             {p.checked_in ? (
-              <Tag className="bg-tone-badge">已簽到</Tag>
+              <Badge className="bg-tone-green-badge">已簽到</Badge>
             ) : (
               <Button variant="primary" size="sm" disabled={busy === p.email} onClick={() => checkIn(p.email)}>
                 {busy === p.email ? "簽到中…" : "代簽到"}

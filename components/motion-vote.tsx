@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { voteAction } from "@/lib/actions";
 import { useLiveState, type LiveMotion } from "@/components/live-polling";
-import { BtnLink, Card, Tag } from "@/components/ui";
+import { Badge, Card } from "tpass-ui";
+import { LinkButton } from "@/components/link-button";
 
 const THRESHOLD_LABEL: Record<string, string> = {
   "1/2+1/2": "出席 1/2＋簡單多數",
@@ -50,10 +51,10 @@ export function MotionVote({
 
   return (
     <Card className="mx-auto max-w-2xl text-center">
-      <Tag className="bg-tone-badge">表決案</Tag>
-      <Tag className="ml-2 bg-accent/10">
+      <Badge className="bg-tone-green-badge">表決案</Badge>
+      <Badge className="ml-2 bg-accent/10">
         {THRESHOLD_LABEL[motion?.threshold ?? "1/2+1/2"] ?? "自訂門檻"}
-      </Tag>
+      </Badge>
       <h1 className="mt-4 text-2xl font-extrabold leading-snug">{motion?.title ?? "表決"}</h1>
 
       {!isOpen ? (
@@ -63,7 +64,7 @@ export function MotionVote({
             : "表決尚未開放，主席開啟後此處會自動解鎖。"}
         </p>
       ) : answeredValue ? (
-        <p className="mt-6 rounded-xl border-2 border-foreground bg-tone-bg px-4 py-3 text-sm font-bold text-tone-text">
+        <p className="mt-6 rounded-xl border-2 border-foreground bg-tone-green-bg px-4 py-3 text-sm font-bold text-tone-green-text">
           你已完成這項表決，無法更改。
         </p>
       ) : (
@@ -80,7 +81,7 @@ export function MotionVote({
             type="button"
             onClick={() => cast("against")}
             disabled={busy}
-            className="rounded-2xl border-2 border-foreground bg-destructive px-4 py-6 text-lg font-extrabold text-background shadow-[4px_4px_0_0_var(--color-foreground)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[6px_6px_0_0_var(--color-foreground)] active:translate-y-0 disabled:opacity-40"
+            className="rounded-2xl border-2 border-foreground bg-destructive px-4 py-6 text-lg font-extrabold text-primary-foreground shadow-[4px_4px_0_0_var(--color-foreground)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[6px_6px_0_0_var(--color-foreground)] active:translate-y-0 disabled:opacity-40"
           >
             不同意
           </button>
@@ -95,12 +96,12 @@ export function MotionVote({
       ) : null}
 
       <p className="mt-6">
-        <BtnLink href={`/read?id=${meetingId}`}>← 返回會議</BtnLink>
+        <LinkButton href={`/read?id=${meetingId}`}>← 返回會議</LinkButton>
       </p>
       <p className="mt-3">
-        <BtnLink href={`/ballots?meetingId=${meetingId}`} variant="tone">
+        <LinkButton href={`/ballots?meetingId=${meetingId}`}>
           查看每人投票紀錄
-        </BtnLink>
+        </LinkButton>
       </p>
     </Card>
   );

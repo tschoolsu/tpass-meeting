@@ -8,7 +8,7 @@ import {
   startVoteAction,
   stopVoteAction,
 } from "@/lib/actions";
-import { Button, Card, Tag } from "@/components/ui";
+import { Badge, Button, Card } from "tpass-ui";
 
 export function ChairControls({
   meetingId,
@@ -64,7 +64,7 @@ export function ChairControls({
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-lg font-extrabold">主席控制台</h2>
         <div className="flex items-center gap-2">
-          <Tag className="bg-tone-badge">{current ? `現行：${current.title}` : "尚未選定現行議程"}</Tag>
+          <Badge className="bg-tone-green-badge">{current ? `現行：${current.title}` : "尚未選定現行議程"}</Badge>
           <Button variant="accent" size="sm" disabled={pending?.type === "next"} onClick={next}>
             下一案
           </Button>
@@ -84,11 +84,11 @@ export function ChairControls({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-extrabold">
                   #{i + 1} {a.title}
-                  {isCurrent ? <Tag className="ml-2 bg-tone-badge">現行</Tag> : null}
+                  {isCurrent ? <Badge className="ml-2 bg-tone-green-badge">現行</Badge> : null}
                 </p>
                 <div className="flex flex-wrap items-center gap-1.5">
                   <Button
-                    variant="tone"
+                   
                     size="sm"
                     disabled={isCurrent || pending?.id === a.id}
                     onClick={() => setCurrent(a.id)}
@@ -105,13 +105,13 @@ export function ChairControls({
                     return (
                       <li
                         key={m.id}
-                        className="flex items-center justify-between gap-3 rounded-lg border-2 border-foreground bg-tone-bg px-3 py-1.5"
+                        className="flex items-center justify-between gap-3 rounded-lg border-2 border-foreground bg-tone-green-bg px-3 py-1.5"
                       >
                         <span className="text-sm font-bold">{m.title}</span>
                         <span className="flex items-center gap-2">
-                          <Tag className={open ? "bg-tone-badge" : "bg-secondary"}>
+                          <Badge className={open ? "bg-tone-green-badge" : "bg-secondary"}>
                             {m.status === "open" ? "表決中" : m.status === "closed" ? "已結算" : "未開放"}
-                          </Tag>
+                          </Badge>
                           {open ? (
                             <Button
                               variant="destructive"

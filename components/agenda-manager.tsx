@@ -10,7 +10,9 @@ import {
   deleteMotionAction,
   moveAgendaItemAction,
 } from "@/lib/actions";
-import { Button, Card, Field, Input, Textarea } from "@/components/ui";
+import { Button, Card, Input, Select, Textarea } from "tpass-ui";
+import { Field } from "@/components/field";
+import { FileInput } from "@/components/file-input";
 import { THRESHOLD_LABEL, thLabel } from "@/lib/threshold";
 
 export function AgendaManager({
@@ -64,7 +66,7 @@ export function AgendaManager({
                 router.refresh();
               }}
             >
-              <Button type="submit" variant="tone" size="sm" disabled={i === 0}>
+              <Button type="submit" size="sm" disabled={i === 0}>
                 ↑ 上移
               </Button>
             </form>
@@ -74,7 +76,7 @@ export function AgendaManager({
                 router.refresh();
               }}
             >
-              <Button type="submit" variant="tone" size="sm" disabled={i === agenda.length - 1}>
+              <Button type="submit" size="sm" disabled={i === agenda.length - 1}>
                 ↓ 下移
               </Button>
             </form>
@@ -100,7 +102,7 @@ export function AgendaManager({
               {item.motions.map((m) => (
                 <div
                   key={m.id}
-                  className="flex items-center justify-between gap-2 rounded-lg border-2 border-foreground bg-tone-bg px-3 py-2"
+                  className="flex items-center justify-between gap-2 rounded-lg border-2 border-foreground bg-tone-green-bg px-3 py-2"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold">{m.title}</p>
@@ -139,17 +141,15 @@ export function AgendaManager({
               <div className="min-w-40 flex-1">
                 <Input name="title" placeholder="表決案標題" required maxLength={500} />
               </div>
-              <select
-                name="threshold"
-                className="rounded-xl border-2 border-foreground bg-card px-2 py-2 text-xs font-bold"
-                defaultValue="1/2+1/2"
-              >
-                {Object.entries(THRESHOLD_LABEL).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+              <div className="w-48">
+                <Select name="threshold" defaultValue="1/2+1/2" className="text-xs font-bold">
+                  {Object.entries(THRESHOLD_LABEL).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
               <Button type="submit" variant="primary" size="sm">
                 ＋ 表決案
               </Button>
@@ -189,8 +189,10 @@ export function AgendaManager({
                 }}
                 className="flex flex-wrap items-end gap-2"
               >
-                <Input type="file" name="file" accept="*/*" />
-                <Button type="submit" variant="tone" size="sm">
+                <div className="min-w-64 flex-1">
+                  <FileInput name="file" accept="*/*" />
+                </div>
+                <Button type="submit" size="sm">
                   上傳附件
                 </Button>
               </form>

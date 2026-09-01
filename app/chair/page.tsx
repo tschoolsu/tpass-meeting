@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isAdmin, requireManager } from "@/lib/auth";
 import { getMeetingDetail } from "@/lib/meetings";
 import { ChairControls } from "@/components/chair-controls";
 import { LiveAutoRefresh } from "@/components/live-auto-refresh";
-import { Card, Tag } from "@/components/ui";
+import { Badge, Card } from "tpass-ui";
+import { LinkButton } from "@/components/link-button";
 
 export const dynamic = "force-dynamic";
 
@@ -30,12 +30,9 @@ export default async function ChairPage({
   return (
     <div className="mx-auto max-w-3xl">
       <LiveAutoRefresh meetingId={id} />
-      <Link
-        href={`/read?id=${id}`}
-        className="inline-flex items-center gap-1.5 rounded-xl border-2 border-foreground bg-card px-3.5 py-2 text-sm font-bold shadow-[3px_3px_0_0_var(--color-foreground)]"
-      >
+<LinkButton href={`/read?id=${id}`}>
         ← 返回會議
-      </Link>
+      </LinkButton>
 
       <Card className="mt-6 shadow-[6px_6px_0_0_var(--color-foreground)]">
         <h1 className="text-2xl font-extrabold">{meeting.title}</h1>
@@ -63,11 +60,11 @@ export default async function ChairPage({
                 <h3 className="text-base font-extrabold">#{a.position + 1} {a.title}</h3>
               </div>
               {a.motions.map((m) => (
-                <div key={m.id} className="mt-2 flex items-center justify-between rounded-lg border-2 border-foreground bg-tone-bg px-3 py-2">
+                <div key={m.id} className="mt-2 flex items-center justify-between rounded-lg border-2 border-foreground bg-tone-green-bg px-3 py-2">
                   <span className="text-sm font-bold">{m.title}</span>
-                  <Tag className={m.status === "open" ? "bg-accent" : m.status === "closed" ? "bg-secondary" : "bg-tone-badge"}>
+                  <Badge className={m.status === "open" ? "bg-accent" : m.status === "closed" ? "bg-secondary" : "bg-tone-green-badge"}>
                     {m.status === "open" ? "表決中" : m.status === "closed" ? "已結算" : "未開放"}
-                  </Tag>
+                  </Badge>
                 </div>
               ))}
             </Card>

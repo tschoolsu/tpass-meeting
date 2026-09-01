@@ -3,7 +3,8 @@ import { listApiKeys } from "@/lib/api-keys";
 import { bgmInfo } from "@/lib/bgm";
 import { countMeetings } from "@/lib/meetings";
 import { PanelClient } from "@/components/panel-client";
-import { BtnLink, PageHeader } from "@/components/ui";
+import { PageHeader } from "@/components/page-header";
+import { LinkButton } from "@/components/link-button";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export default async function PanelPage() {
       <PageHeader
         title="管理面板"
         desc="管理會議資料的備份、背景音樂與 API 存取權限。"
-        right={<BtnLink href="/">← 返回首頁</BtnLink>}
+        right={<LinkButton href="/">← 返回首頁</LinkButton>}
       />
       <PanelClient
         hasBgm={bgm !== null}

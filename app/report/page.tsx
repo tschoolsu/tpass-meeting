@@ -46,20 +46,20 @@ export default async function ReportPage({
       <style>{`
         .report-doc { font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif; }
         .report-doc h1 { font-size: 24px; margin: 4px 0; }
-        .report-doc h2 { font-size: 16px; margin: 28px 0 8px; border-bottom: 2px solid #111; padding-bottom: 4px; }
-        .report-doc .meta { color: #555; font-size: 13px; line-height: 1.7; }
-        .report-doc .meta b { color: #111; }
+        .report-doc h2 { font-size: 16px; margin: 28px 0 8px; border-bottom: 2px solid var(--color-foreground); padding-bottom: 4px; }
+        .report-doc .meta { color: var(--color-muted-foreground); font-size: 13px; line-height: 1.7; }
+        .report-doc .meta b { color: var(--color-foreground); }
         .report-doc table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 8px; }
-        .report-doc th, .report-doc td { border: 1px solid #999; padding: 5px 8px; text-align: left; vertical-align: top; }
-        .report-doc th { background: #f0f0f0; }
+        .report-doc th, .report-doc td { border: 1px solid var(--color-input); padding: 5px 8px; text-align: left; vertical-align: top; }
+        .report-doc th { background: var(--color-muted); }
         .report-doc .agenda-title { font-weight: 700; margin: 12px 0 4px; }
-        .report-doc .agenda-desc { white-space: pre-wrap; color: #444; font-size: 12.5px; margin: 0 0 8px; }
-        .report-doc .note { border: 1px solid #999; border-radius: 6px; padding: 8px 10px; margin-top: 8px; }
+        .report-doc .agenda-desc { white-space: pre-wrap; color: var(--color-muted-foreground); font-size: 12.5px; margin: 0 0 8px; }
+        .report-doc .note { border: 1px solid var(--color-input); border-radius: 6px; padding: 8px 10px; margin-top: 8px; }
         .report-doc .note .who { font-weight: 700; font-size: 12px; }
-        .report-doc .note .when { color: #777; font-size: 11px; font-weight: 400; }
+        .report-doc .note .when { color: var(--color-muted-foreground); font-size: 11px; font-weight: 400; }
         .report-doc .note p { margin: 4px 0 0; white-space: pre-wrap; font-size: 13px; }
-        .report-doc .empty { color: #777; font-style: italic; font-size: 12.5px; }
-        .report-doc footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid #ccc; color: #888; font-size: 11px; }
+        .report-doc .empty { color: var(--color-muted-foreground); font-style: italic; font-size: 12.5px; }
+        .report-doc footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid var(--color-input); color: var(--color-muted-foreground); font-size: 11px; }
         @media print {
           .print-hide { display: none !important; }
           .report-doc { padding: 0; }

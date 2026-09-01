@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { btn } from "@/components/ui";
+import { Button } from "tpass-ui";
 
 export function CopyLinkButton({ url, label, copiedLabel = "已複製" }: { url: string; label: string; copiedLabel?: string }) {
   const [copied, setCopied] = useState(false);
@@ -30,8 +30,8 @@ export function CopyLinkButton({ url, label, copiedLabel = "已複製" }: { url:
   }
 
   return (
-    <button type="button" onClick={copy} className={btn("default")} aria-live="polite">
+    <Button type="button" onClick={copy} aria-live="polite">
       {copied ? `✓ ${copiedLabel}` : label}
-    </button>
+    </Button>
   );
 }

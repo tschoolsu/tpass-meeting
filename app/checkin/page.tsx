@@ -1,11 +1,11 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isAdmin, isModerator, requireAccess } from "@/lib/auth";
 import { getCheckInState, getMeeting, getMeetingDetail, isParticipant } from "@/lib/meetings";
 import { CheckinButton } from "@/components/checkin-button";
 import { StaffCheckin } from "@/components/staff-checkin";
 import { formatTaipei, isStarted } from "@/lib/time";
-import { Card, Tag } from "@/components/ui";
+import { Badge, Card } from "tpass-ui";
+import { LinkButton } from "@/components/link-button";
 
 export const dynamic = "force-dynamic";
 
@@ -31,17 +31,14 @@ export default async function CheckinPage({
 
   return (
     <div className="mx-auto max-w-lg">
-      <Link
-        href={`/read?id=${id}`}
-        className="mb-8 inline-flex items-center gap-1.5 rounded-xl border-2 border-foreground bg-card px-3.5 py-2 text-sm font-bold shadow-[3px_3px_0_0_var(--color-foreground)]"
-      >
+<LinkButton href={`/read?id=${id}`} className="mb-8">
         ← 返回會議
-      </Link>
+      </LinkButton>
 
       {invited && started ? (
         <Card className="w-full py-10 text-center shadow-[6px_6px_0_0_var(--color-foreground)]">
           <div className="mb-6 flex flex-wrap items-center justify-center gap-2">
-            {meeting.department ? <Tag className="bg-tone-badge">{meeting.department}</Tag> : null}
+            {meeting.department ? <Badge className="bg-tone-green-badge">{meeting.department}</Badge> : null}
             <span className="font-mono text-xs font-bold text-muted-foreground">
               {formatTaipei(meeting.starts_at)}
             </span>

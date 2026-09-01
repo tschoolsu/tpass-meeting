@@ -2,16 +2,12 @@ import { isModerator, requireAccess } from "@/lib/auth";
 import { listMeetings, listMyMeetings } from "@/lib/meetings";
 import { MeetingFilter } from "@/components/meeting-filter";
 import { canStudentCreate } from "@/lib/permissions";
-import { BtnLink, Card, PageHeader } from "@/components/ui";
+import { serviceConfig } from "@/config/service";
+import { Card } from "tpass-ui";
+import { PageHeader } from "@/components/page-header";
+import { LinkButton } from "@/components/link-button";
 
 export const dynamic = "force-dynamic";
-
-function departments(): string[] {
-  return (process.env.DEPARTMENTS ?? "")
-    .split(",")
-    .map((d) => d.trim())
-    .filter(Boolean);
-}
 
 export default async function HomePage() {
   const session = await requireAccess("/");
@@ -32,9 +28,9 @@ export default async function HomePage() {
         }
         right={
           allowCreate ? (
-            <BtnLink href="/create" variant="primary">
+            <LinkButton href="/create" variant="primary">
               ＋ 創建會議記錄
-            </BtnLink>
+            </LinkButton>
           ) : undefined
         }
       />
@@ -45,13 +41,13 @@ export default async function HomePage() {
             <h2 className="text-lg font-extrabold">我受邀的會議</h2>
             <p className="text-sm text-muted-foreground">檢視你需出席的各項會議。</p>
           </div>
-          <BtnLink href="/my" variant="accent">
+          <LinkButton href="/my" variant="accent">
             前往「我受邀的會議」
-          </BtnLink>
+          </LinkButton>
         </Card>
       ) : null}
 
-      <MeetingFilter meetings={meetings} departments={departments()} canCreate={allowCreate} />
+      <MeetingFilter meetings={meetings} departments={serviceConfig.departments} canCreate={allowCreate} />
     </div>
   );
 }

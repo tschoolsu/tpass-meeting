@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAccess } from "@/lib/auth";
 import { getMeeting } from "@/lib/meetings";
 import { getMeetingBallots } from "@/lib/agenda";
-import { Card, Tag } from "@/components/ui";
+import { Badge, Card } from "tpass-ui";
+import { LinkButton } from "@/components/link-button";
 
 export const dynamic = "force-dynamic";
 
@@ -46,12 +46,9 @@ export default async function BallotsPage({
 
   return (
     <div className="mx-auto max-w-5xl">
-      <Link
-        href={`/read?id=${meetingId}`}
-        className="inline-flex items-center gap-1.5 rounded-xl border-2 border-foreground bg-card px-3.5 py-2 text-sm font-bold shadow-[3px_3px_0_0_var(--color-foreground)]"
-      >
+<LinkButton href={`/read?id=${meetingId}`}>
         ← 返回會議
-      </Link>
+      </LinkButton>
 
       <h1 className="mt-6 text-2xl font-extrabold">具名投票紀錄</h1>
       <p className="mt-1 text-sm font-medium text-muted-foreground">
@@ -60,20 +57,18 @@ export default async function BallotsPage({
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <span className="text-xs font-bold text-muted-foreground">年級篩選：</span>
-        <Link
-          href={`/ballots?meetingId=${meetingId}`}
-          className={`rounded-lg border-2 border-foreground px-3 py-1 text-xs font-bold ${!gradeFilter ? "bg-accent text-background" : "bg-card"}`}
-        >
+        <LinkButton href={`/ballots?meetingId=${meetingId}`} size="sm" variant={!gradeFilter ? "accent" : "default"}>
           全部
-        </Link>
+        </LinkButton>
         {grades.map((g) => (
-          <Link
+          <LinkButton
             key={g}
             href={`/ballots?meetingId=${meetingId}&grade=${encodeURIComponent(g)}`}
-            className={`rounded-lg border-2 border-foreground px-3 py-1 text-xs font-bold ${gradeFilter === g ? "bg-accent text-background" : "bg-card"}`}
+            size="sm"
+            variant={gradeFilter === g ? "accent" : "default"}
           >
             {g}
-          </Link>
+          </LinkButton>
         ))}
       </div>
 
@@ -108,9 +103,9 @@ export default async function BallotsPage({
                     const status = matrix.votes[p.email]?.[String(m.id)] ?? "";
                     return (
                       <td key={m.id} className="px-3 py-2 text-center">
-                        <Tag className={STATUS_CLS[status] ?? ""}>
+                        <Badge className={STATUS_CLS[status] ?? ""}>
                           {STATUS_LABEL[status] ?? "未投票"}
-                        </Tag>
+                        </Badge>
                       </td>
                     );
                   })}

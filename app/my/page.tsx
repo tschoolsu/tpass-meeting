@@ -1,7 +1,9 @@
 import { requireAccess } from "@/lib/auth";
 import { listMyMeetings } from "@/lib/meetings";
 import { isStarted } from "@/lib/time";
-import { BtnLink, Card, PageHeader, Tag } from "@/components/ui";
+import { Badge, Card } from "tpass-ui";
+import { PageHeader } from "@/components/page-header";
+import { LinkButton } from "@/components/link-button";
 
 export const dynamic = "force-dynamic";
 
@@ -31,16 +33,16 @@ export default async function MyMeetingsPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      {m.department ? <Tag className="bg-tone-badge">{m.department}</Tag> : null}
-                      <Tag className={started ? "bg-accent/10" : "bg-secondary"}>
+                      {m.department ? <Badge className="bg-tone-green-badge">{m.department}</Badge> : null}
+                      <Badge className={started ? "bg-accent/10" : "bg-secondary"}>
                         {started ? "進行中" : "尚未開始"}
-                      </Tag>
+                      </Badge>
                     </div>
                     <h2 className="mt-2 text-lg font-extrabold">{m.title}</h2>
                   </div>
-                  <BtnLink href={`/read?id=${m.id}`} variant="primary">
+                  <LinkButton href={`/read?id=${m.id}`} variant="primary">
                     檢視
-                  </BtnLink>
+                  </LinkButton>
                 </div>
               </Card>
             );
