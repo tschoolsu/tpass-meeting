@@ -414,12 +414,16 @@ export async function updateMeeting(
 }
 
 // 從名單移除一個人。只動 participants；他已投的票（ballots 以 email 記）不受影響。
-export async function removeParticipant(meetingId: number, email: string): Promise<boolean> {
-  const { rowCount } = await query(`DELETE FROM participants WHERE meeting_id = $1 AND email = $2`, [
-    meetingId,
-    email.toLowerCase(),
-  ]);
-  return rowCount > 0;
+// DINT-001：已簽到者保留出席紀錄，不可移除。
+export async function removeParticipant(meetingId: number, email: string): Promise<"removed" | "not-found" | "checked-in"> {
+  const { rows } = await query<{ checked_in: boolean }>(
+    `SELECT checked_in FROM participants WHERE meeting_id = $1 AND email = $2`,
+    [meetingId, email.toLowerCase()],
+  );
+  if (rows.length === 0) return "not-found";
+  if (rows[0].checked_in) return "checked-in";
+  await query(`DELETE FROM participants WHERE meeting_id = $1 AND email = $2`, [meetingId, email.toLowerCase()]);
+  return "removed";
 }
 
 export async function deleteMeeting(id: number, ownerSub: string, isAdmin: boolean): Promise<boolean> {

@@ -108,8 +108,9 @@ export async function updateMeetingAction(
 export async function removeParticipantAction(meetingId: number, email: string): Promise<FormState> {
   const session = await requireManager();
   if (!(await canEditMeeting(meetingId, session))) return { error: "你沒有權限編輯這場會議的名單" };
-  const ok = await removeParticipant(meetingId, email);
-  if (!ok) return { error: "名單裡沒有這個人" };
+  const result = await removeParticipant(meetingId, email);
+  if (result === "not-found") return { error: "名單裡沒有這個人" };
+  if (result === "checked-in") return { error: "此人已簽到，為保留出席紀錄不可移除" };
   revalidatePath(`/read?id=${meetingId}`);
   return {};
 }
