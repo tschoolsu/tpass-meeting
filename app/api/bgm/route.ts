@@ -18,7 +18,8 @@ export async function GET() {
   return new Response(stream, {
     headers: {
       "content-type": "audio/mpeg",
-      "cache-control": "private, max-age=300",
+      // M-7：BGM URL 已帶版本（mtime），換檔才換 URL → 可用長快取，不再每 5 分鐘重下。
+      "cache-control": "private, max-age=86400",
     },
   });
 }

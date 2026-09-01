@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { isAdmin, isModerator, requireAccess } from "@/lib/auth";
 import { canViewMeeting, canWriteNotes, getMeetingDetail } from "@/lib/meetings";
 import { formatTaipei } from "@/lib/time";
-import { hasBgm } from "@/lib/bgm";
+import { bgmInfo } from "@/lib/bgm";
 import { authConfig } from "@/config/auth";
 import { thLabel } from "@/lib/threshold";
 import { derivePhase, motionLabel, primaryCtaFor, PUBLIC_PHASE_META } from "@/lib/meeting-status";
@@ -32,7 +32,7 @@ export default async function ReadPage({
   const session = await requireAccess(`/read?id=${id}`);
   const detail = await getMeetingDetail(id);
   if (!detail) notFound();
-  const bgm = await hasBgm();
+  const bgm = await bgmInfo();
 
   const { meeting, participants, agenda, notes } = detail;
   const isAdminUser = isAdmin(session);
@@ -63,7 +63,7 @@ export default async function ReadPage({
         <LiveAutoRefresh />
         <VotePopup enabled={me !== undefined} />
       </LiveStateProvider>
-      {bgm ? <BgmPlayer /> : null}
+      {bgm ? <BgmPlayer version={bgm.updated_at} /> : null}
       <LinkButton href="/">← 返回首頁</LinkButton>
 
       <Card className="mt-6 shadow-[6px_6px_0_0_var(--color-foreground)]">
