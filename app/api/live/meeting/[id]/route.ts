@@ -13,7 +13,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!session) return NextResponse.json({ error: "未登入" }, { status: 401 });
 
   const { id: raw } = await params;
-  if (!/^\d+$/.test(raw)) return NextResponse.json({ error: "id 格式不正確" }, { status: 400 });
+  if (!/^\d{1,9}$/.test(raw)) return NextResponse.json({ error: "id 格式不正確" }, { status: 400 });
   const meetingId = Number(raw);
 
   const detail = await getMeetingDetail(meetingId);

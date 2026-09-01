@@ -11,7 +11,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 
   const { id } = await params;
-  if (!/^\d+$/.test(id)) return NextResponse.json({ error: "會議 id 格式不正確" }, { status: 400 });
+  if (!/^\d{1,9}$/.test(id)) return NextResponse.json({ error: "會議 id 格式不正確" }, { status: 400 });
 
   const detail = await getMeetingDetail(Number(id));
   if (!detail) return NextResponse.json({ error: "找不到會議" }, { status: 404 });

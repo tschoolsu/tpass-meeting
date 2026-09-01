@@ -27,7 +27,7 @@ export default async function BallotsPage({
 }) {
   const sp = await searchParams;
   const rawId = Array.isArray(sp.meetingId) ? sp.meetingId[0] : sp.meetingId;
-  if (!rawId || !/^\d+$/.test(rawId)) notFound();
+  if (!rawId || !/^\d{1,9}$/.test(rawId)) notFound();
   const meetingId = Number(rawId);
   const gradeFilter = Array.isArray(sp.grade) ? sp.grade[0] : sp.grade;
 

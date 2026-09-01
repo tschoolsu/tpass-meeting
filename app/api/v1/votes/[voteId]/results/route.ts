@@ -12,7 +12,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ vote
   }
 
   const { voteId } = await params;
-  if (!/^\d+$/.test(voteId)) return NextResponse.json({ error: "表決 id 格式不正確" }, { status: 400 });
+  if (!/^\d{1,9}$/.test(voteId)) return NextResponse.json({ error: "表決 id 格式不正確" }, { status: 400 });
 
   const results = await getMotionResults(Number(voteId));
   if (!results) return NextResponse.json({ error: "找不到表決" }, { status: 404 });

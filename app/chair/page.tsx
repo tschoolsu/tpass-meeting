@@ -21,7 +21,7 @@ export default async function ChairPage({
 }) {
   const sp = await searchParams;
   const rawId = Array.isArray(sp.id) ? sp.id[0] : sp.id;
-  if (!rawId || !/^\d+$/.test(rawId)) notFound();
+  if (!rawId || !/^\d{1,9}$/.test(rawId)) notFound();
   const id = Number(rawId);
 
   const session = await requireManager(`/chair?id=${id}`);
