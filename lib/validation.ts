@@ -73,7 +73,8 @@ export function parseMeeting(formData: FormData): MeetingInput {
     title: parseTitle(String(formData.get("title") ?? "")),
     department: String(formData.get("department") ?? "").trim(),
     startsAt: parseStartsAt(String(formData.get("starts_at") ?? "")),
-    participantEmails: parseParticipants(String(formData.get("participants") ?? "")),
+    // 名單不在表單裡：只有工作台 ② 一個入口（parseParticipantLines），這裡永遠是空的。
+    participantEmails: [],
     location: parseText(formData.get("location"), 200, "地點"),
     onlineLink: parseText(formData.get("online_link"), 1000, "線上連結"),
     description: parseText(formData.get("description"), 10000, "會議說明"),

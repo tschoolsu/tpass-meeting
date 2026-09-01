@@ -1,16 +1,15 @@
-import { notFound, redirect } from "next/navigation";
-import { isAdmin, requireAccess } from "@/lib/auth";
-import { getMeetingDetail } from "@/lib/meetings";
-import { toDatetimeLocal } from "@/lib/time";
-import { MeetingForm } from "@/components/meeting-form";
+import { redirect } from "next/navigation";
+import { requireAccess } from "@/lib/auth";
 import { canStudentCreate } from "@/lib/permissions";
 import { serviceConfig } from "@/config/service";
+import { MeetingForm } from "@/components/meeting-form";
 import { PageHeader } from "@/components/page-header";
 import { LinkButton } from "@/components/link-button";
 
 export const dynamic = "force-dynamic";
 
-// /create 建立；/create?id={數字} 編輯既有會議。
+// /create 只填基本資料，建好直接進工作台。舊的 /create?id= 編輯模式已併入工作台 ①，
+// 這裡只做轉址，舊連結不斷。
 export default async function CreatePage({
   searchParams,
 }: {
@@ -18,52 +17,19 @@ export default async function CreatePage({
 }) {
   const sp = await searchParams;
   const rawId = Array.isArray(sp.id) ? sp.id[0] : sp.id;
+  if (rawId && /^\d+$/.test(rawId)) redirect(`/manage?id=${rawId}`);
 
-  if (rawId && !/^\d+$/.test(rawId)) notFound();
-  const returnPath = rawId ? `/create?id=${rawId}` : "/create";
-  const session = await requireAccess(returnPath);
-
-  // 新增：一般學生存取透過全置開關（需求 1c）
-  if (!rawId && !canStudentCreate(session)) {
-    redirect("/");
-  }
-
-  let initial = null;
-  let meetingId: number | undefined;
-
-  if (rawId) {
-    meetingId = Number(rawId);
-    const detail = await getMeetingDetail(meetingId);
-    if (!detail) notFound();
-
-    // 編輯權限：admin，或建立者本人（以 sub 比對，不使用 email）。
-    if (!isAdmin(session) && detail.meeting.owner_sub !== session.sub) {
-      redirect(`/read?id=${meetingId}`);
-    }
-
-    initial = {
-      title: detail.meeting.title,
-      department: detail.meeting.department,
-      startsAt: toDatetimeLocal(new Date(detail.meeting.starts_at)),
-      participants: detail.participants.map((p) => p.email).join("\n"),
-      location: detail.meeting.location,
-      onlineLink: detail.meeting.online_link,
-      description: detail.meeting.description,
-    };
-  }
+  const session = await requireAccess("/create");
+  if (!canStudentCreate(session)) redirect("/");
 
   return (
     <div className="mx-auto max-w-2xl">
       <PageHeader
-        title={meetingId ? "編輯會議記錄" : "創建會議記錄"}
-        desc={
-          meetingId
-            ? "修改會議資訊；已完成的簽到紀錄會保留。議程與表決請至會議頁新增。"
-            : "填寫會議資訊並邀請參與人，建立後可新增議程、表決並簽到。"
-        }
+        title="建立會議"
+        desc="先填基本資料就好。建好後會進入工作台，名單與議程在那裡加。"
         right={<LinkButton href="/">← 返回首頁</LinkButton>}
       />
-      <MeetingForm departments={serviceConfig.departments} meetingId={meetingId} initial={initial} />
+      <MeetingForm departments={serviceConfig.departments} />
     </div>
   );
 }

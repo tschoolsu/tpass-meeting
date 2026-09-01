@@ -23,6 +23,7 @@ import {
   getMeeting,
   getMeetingDetail,
   isParticipant,
+  removeParticipant,
   setCheckIn,
   updateMeeting,
   type MeetingInput,
@@ -58,7 +59,10 @@ export interface FormState {
   error?: string;
 }
 
-export async function createMeetingAction(_prev: FormState, formData: FormData): Promise<FormState> {
+/** 會議基本資料表單：建立會 redirect，編輯則回 saved 讓工作台就地收合。 */
+export type MeetingFormState = FormState & { saved?: boolean };
+
+export async function createMeetingAction(_prev: MeetingFormState, formData: FormData): Promise<MeetingFormState> {
   const session = await requireAccess();
   const canCreate = canStudentCreate(session);
   if (!canCreate) return { error: "你沒有權限建立會議" };
@@ -76,14 +80,15 @@ export async function createMeetingAction(_prev: FormState, formData: FormData):
     name: session.name,
   });
   revalidatePath("/");
-  redirect(`/read?id=${meetingId}`);
+  // 建好直接進工作台：下一步（加名單、建議程）都在那裡。
+  redirect(`/manage?id=${meetingId}`);
 }
 
 export async function updateMeetingAction(
   id: number,
-  _prev: FormState,
+  _prev: MeetingFormState,
   formData: FormData,
-): Promise<FormState> {
+): Promise<MeetingFormState> {
   const session = await requireManager();
   let input: MeetingInput;
   try {
@@ -95,7 +100,17 @@ export async function updateMeetingAction(
   const ok = await updateMeeting(id, input, session.sub, isAdmin(session));
   if (!ok) return { error: "你沒有權限編輯這份會議記錄" };
   revalidatePath("/");
-  redirect(`/read?id=${id}`);
+  return { saved: true };
+}
+
+// 從名單移除一個人（工作台 ②）。這是唯一的移除路徑——貼錯 email 沒有它就改不回來。
+export async function removeParticipantAction(meetingId: number, email: string): Promise<FormState> {
+  const session = await requireManager();
+  if (!(await canEditMeeting(meetingId, session))) return { error: "你沒有權限編輯這場會議的名單" };
+  const ok = await removeParticipant(meetingId, email);
+  if (!ok) return { error: "名單裡沒有這個人" };
+  revalidatePath(`/read?id=${meetingId}`);
+  return {};
 }
 
 export async function deleteMeetingAction(id: number): Promise<FormState> {

@@ -43,6 +43,7 @@ export default async function ManagePage({
         notify={notify}
         emailEnabled={serviceConfig.smtp !== null}
         checkinUrl={`${authConfig.selfUrl}/checkin?id=${id}`}
+        departments={serviceConfig.departments}
       />
     </div>
   );

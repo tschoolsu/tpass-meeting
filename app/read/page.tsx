@@ -11,7 +11,6 @@ import { BgmPlayer } from "@/components/bgm-player";
 import { AgendaManager } from "@/components/agenda-manager";
 import { thLabel } from "@/lib/threshold";
 import { derivePhase, motionLabel, PUBLIC_PHASE_META } from "@/lib/meeting-status";
-import { ParticipantBulk } from "@/components/participant-bulk";
 import { LiveAutoRefresh } from "@/components/live-auto-refresh";
 import { VotePopup } from "@/components/vote-popup";
 import { Badge, Card } from "tpass-ui";
@@ -276,7 +275,6 @@ export default async function ReadPage({
               所有人都已完成簽到。
             </p>
           ) : null}
-          {canEdit ? <ParticipantBulk meetingId={id} /> : null}
         </Card>
       </section>
 

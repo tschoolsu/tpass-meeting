@@ -377,46 +377,36 @@ export async function createMeeting(input: MeetingInput, owner: { sub: string; e
   }
 }
 
-export async function updateMeeting(id: number, input: MeetingInput, ownerSub: string, isAdmin: boolean): Promise<boolean> {
+// 只更新基本資料。名單刻意不在這裡動——以前這裡會把「不在表單裡的人」整批 DELETE，
+// 編輯一次會議就砍掉已簽到的人；名單現在只有工作台 ② 一個入口（add／remove 各自一顆 action）。
+export async function updateMeeting(
+  id: number,
+  input: Omit<MeetingInput, "participantEmails">,
+  ownerSub: string,
+  isAdmin: boolean,
+): Promise<boolean> {
   const meeting = await getMeeting(id);
   if (!meeting) return false;
   if (!isAdmin && meeting.owner_sub !== ownerSub) return false;
 
   const { meetingDate, startsAtIso } = splitStartsAt(input.startsAt);
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
+  await query(
+    `UPDATE meetings
+        SET title = $1, department = $2, meeting_date = $3, starts_at = $4,
+            location = $5, online_link = $6, description = $7
+      WHERE id = $8`,
+    [input.title, input.department, meetingDate, startsAtIso, input.location, input.onlineLink, input.description, id],
+  );
+  return true;
+}
 
-    await client.query(
-      `UPDATE meetings
-          SET title = $1, department = $2, meeting_date = $3, starts_at = $4,
-              location = $5, online_link = $6, description = $7
-        WHERE id = $8`,
-      [input.title, input.department, meetingDate, startsAtIso, input.location, input.onlineLink, input.description, id],
-    );
-
-    await client.query(
-      `DELETE FROM participants
-        WHERE meeting_id = $1 AND email <> ALL($2::text[])`,
-      [id, input.participantEmails],
-    );
-    for (const email of input.participantEmails) {
-      await client.query(
-        `INSERT INTO participants (meeting_id, email)
-         VALUES ($1, $2)
-         ON CONFLICT (meeting_id, email) DO NOTHING`,
-        [id, email],
-      );
-    }
-
-    await client.query("COMMIT");
-    return true;
-  } catch (err) {
-    await client.query("ROLLBACK");
-    throw err;
-  } finally {
-    client.release();
-  }
+// 從名單移除一個人。只動 participants；他已投的票（ballots 以 email 記）不受影響。
+export async function removeParticipant(meetingId: number, email: string): Promise<boolean> {
+  const { rowCount } = await query(`DELETE FROM participants WHERE meeting_id = $1 AND email = $2`, [
+    meetingId,
+    email.toLowerCase(),
+  ]);
+  return rowCount > 0;
 }
 
 export async function deleteMeeting(id: number, ownerSub: string, isAdmin: boolean): Promise<boolean> {

@@ -8,10 +8,10 @@ import { MANAGE_PHASE_META, derivePhase, type WorkbenchCounts } from "@/lib/meet
 import { StageProgress } from "@/components/manage/stage-progress";
 import { CurrentStageCard, type NotifyStats } from "@/components/manage/current-stage-card";
 import { WorkbenchAccordion, type WorkbenchSection } from "@/components/manage/workbench-accordion";
-import { DeleteMeetingButton } from "@/components/delete-meeting";
 import { LinkButton } from "@/components/link-button";
 import { AgendaManager } from "@/components/agenda-manager";
-import { ParticipantBulk } from "@/components/participant-bulk";
+import { BasicsPanel } from "@/components/manage/basics-panel";
+import { ParticipantsPanel } from "@/components/manage/participants-panel";
 import { NoteBar } from "@/components/note-bar";
 
 export function MeetingWorkbench({
@@ -20,12 +20,14 @@ export function MeetingWorkbench({
   notify,
   emailEnabled,
   checkinUrl,
+  departments,
 }: {
   detail: MeetingDetail;
   editors: MeetingEditor[];
   notify: NotifyStats;
   emailEnabled: boolean;
   checkinUrl: string;
+  departments: string[];
 }) {
   const { meeting, participants, agenda, notes } = detail;
   const phase = derivePhase(meeting.status, meeting.starts_at);
@@ -46,49 +48,13 @@ export function MeetingWorkbench({
       key: "basics",
       title: "基本資料",
       summary: `${formatTaipei(meeting.starts_at)}${meeting.location ? `・${meeting.location}` : ""}${meeting.department ? `・${meeting.department}` : ""}`,
-      content: (
-        <div>
-          <dl className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-            <Field label="時間" value={`${formatTaipei(meeting.starts_at)}（UTC+8）`} />
-            <Field label="部會" value={meeting.department || "—"} />
-            <Field label="地點" value={meeting.location || "—"} />
-            <Field label="線上連結" value={meeting.online_link || "—"} />
-            <div className="sm:col-span-2">
-              <Field label="說明" value={meeting.description || "—"} pre />
-            </div>
-          </dl>
-          <div className="mt-5 flex flex-wrap items-center gap-2 border-t-2 border-dashed border-foreground/30 pt-4">
-            <LinkButton href={`/create?id=${meeting.id}`} size="sm">
-              編輯基本資料
-            </LinkButton>
-            <DeleteMeetingButton meetingId={meeting.id} title={meeting.title} />
-          </div>
-        </div>
-      ),
+      content: <BasicsPanel meeting={meeting} phase={phase} departments={departments} />,
     },
     {
       key: "participants",
       title: "參與人",
       summary: `${participants.length} 人・已簽到 ${counts.checkedIn}`,
-      content: (
-        <div>
-          <ul className="divide-y-2 divide-dashed divide-foreground/15">
-            {participants.map((p) => (
-              <li key={p.email} className="flex items-center justify-between gap-3 py-2">
-                <span className="min-w-0 truncate font-mono text-sm font-bold">
-                  {p.email}
-                  {p.grade ? <span className="ml-2 text-xs text-muted-foreground">[{p.grade}]</span> : null}
-                </span>
-                {p.checked_in ? <Badge className="bg-tone-green-badge">已簽到</Badge> : <Badge>未簽到</Badge>}
-              </li>
-            ))}
-            {participants.length === 0 ? (
-              <li className="py-3 text-sm font-medium text-muted-foreground">尚未加入任何參與人，用下方工具貼上名單。</li>
-            ) : null}
-          </ul>
-          <ParticipantBulk meetingId={meeting.id} />
-        </div>
-      ),
+      content: <ParticipantsPanel meetingId={meeting.id} participants={participants} />,
     },
     {
       key: "agenda",
@@ -167,15 +133,6 @@ export function MeetingWorkbench({
       />
 
       <WorkbenchAccordion sections={sections} phase={phase} defaultOpen={defaultOpen} />
-    </div>
-  );
-}
-
-function Field({ label, value, pre = false }: { label: string; value: string; pre?: boolean }) {
-  return (
-    <div>
-      <dt className="font-mono text-xs font-bold text-muted-foreground">{label}</dt>
-      <dd className={pre ? "mt-0.5 whitespace-pre-wrap font-medium" : "mt-0.5 font-medium"}>{value}</dd>
     </div>
   );
 }
