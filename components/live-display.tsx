@@ -101,7 +101,7 @@ export function LiveDisplay({ meetingId }: { meetingId: number }) {
                           <h3 className="text-3xl font-extrabold">{m.title}</h3>
                           <span
                             className={`rounded-full border-2 border-foreground px-5 py-1 font-mono text-xl font-extrabold ${
-                              open ? "animate-pulse bg-accent text-primary-foreground" : closed ? "bg-secondary" : "bg-tone-green-badge"
+                              open ? "animate-pulse bg-tone-green-badge text-tone-green-text" : closed ? "bg-secondary" : "bg-tone-green-badge"
                             }`}
                           >
                             {motionLabel(m.status)}

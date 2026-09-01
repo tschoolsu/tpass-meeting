@@ -52,7 +52,7 @@ export function MotionVote({
   return (
     <Card className="mx-auto max-w-2xl text-center">
       <Badge className="bg-tone-green-badge">表決案</Badge>
-      <Badge className="ml-2 bg-accent/10">
+      <Badge className="ml-2 bg-tone-blue-badge text-tone-blue-text">
         {THRESHOLD_LABEL[motion?.threshold ?? "1/2+1/2"] ?? "自訂門檻"}
       </Badge>
       <h1 className="mt-4 text-2xl font-extrabold leading-snug">{motion?.title ?? "表決"}</h1>

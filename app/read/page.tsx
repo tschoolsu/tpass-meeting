@@ -157,7 +157,7 @@ export default async function ReadPage({
                           <p className="text-sm font-extrabold">{m.title}</p>
                           <div className="flex items-center gap-2">
                             <Badge className="bg-secondary">{thLabel(m.threshold)}</Badge>
-                            <Badge className={m.status === "open" ? "bg-accent text-primary-foreground" : m.status === "closed" ? "bg-secondary" : "bg-card"}>
+                            <Badge className={m.status === "open" ? "bg-tone-green-badge text-tone-green-text" : m.status === "closed" ? "bg-secondary" : "bg-card"}>
                               {motionLabel(m.status)}
                             </Badge>
                           </div>
