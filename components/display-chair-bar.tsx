@@ -5,7 +5,13 @@
 // 操作後不用 router.refresh()——action 會 notifyMeetingChanged，LiveDisplay 自己重抓快照。
 import { useState } from "react";
 import { Badge, Button } from "tpass-ui";
-import { nextAgendaItemAction, prevAgendaItemAction, startVoteAction, stopVoteAction } from "@/lib/actions";
+import {
+  nextAgendaItemAction,
+  prevAgendaItemAction,
+  setMeetingStatusAction,
+  startVoteAction,
+  stopVoteAction,
+} from "@/lib/actions";
 import type { LiveState } from "@/lib/live-state";
 import { motionLabel } from "@/lib/meeting-status";
 import { RESULT_BADGE_CLASS, RESULT_LABEL } from "@/lib/threshold";
@@ -42,11 +48,13 @@ export function DisplayChairBar({ meetingId, data }: { meetingId: number; data: 
     const res = await fn();
     setBusy(null);
     if (res.error) setNotice(res.error);
-    else if (res.hasNext === false) setNotice("已經是最後一案");
+    else if (res.hasNext === false) setNotice("已經是最後一案，按「結束會議」收尾");
     else if (res.hasPrev === false) setNotice("已經在簽到階段");
   }
 
   const current = data.current;
+  const closed = data.meeting.phase === "closed";
+  const isLast = current !== null && data.agenda.length > 0 && current.id === data.agenda[data.agenda.length - 1].id;
 
   if (!open) {
     return (
@@ -61,18 +69,43 @@ export function DisplayChairBar({ meetingId, data }: { meetingId: number; data: 
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 border-t-4 border-foreground bg-card shadow-[0_-6px_0_0_var(--color-foreground)]">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-3">
-        <Badge className="bg-tone-green-badge">{current ? `現行：#${current.position + 1} ${current.title}` : "現行：簽到"}</Badge>
-        <span className="flex items-center gap-1.5">
-          <Button type="button" size="sm" disabled={busy !== null} onClick={() => run("prev", () => prevAgendaItemAction(meetingId))}>
-            ◀ 上一案
+        <Badge className="bg-tone-green-badge">
+          {closed ? "會議已結束" : current ? `現行：#${current.position + 1} ${current.title}` : "現行：簽到"}
+        </Badge>
+        {closed ? (
+          <Button
+            type="button"
+            size="sm"
+            disabled={busy !== null}
+            onClick={() => run("reopen", () => setMeetingStatusAction(meetingId, "published"))}
+          >
+            重新開啟
           </Button>
-          <Button type="button" size="sm" variant="accent" disabled={busy !== null} onClick={() => run("next", () => nextAgendaItemAction(meetingId))}>
-            下一案 ▶
-          </Button>
-        </span>
+        ) : (
+          <span className="flex items-center gap-1.5">
+            <Button type="button" size="sm" disabled={busy !== null} onClick={() => run("prev", () => prevAgendaItemAction(meetingId))}>
+              ◀ 上一案
+            </Button>
+            {isLast ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                disabled={busy !== null}
+                onClick={() => run("close", () => setMeetingStatusAction(meetingId, "closed"))}
+              >
+                結束會議 ■
+              </Button>
+            ) : (
+              <Button type="button" size="sm" variant="accent" disabled={busy !== null} onClick={() => run("next", () => nextAgendaItemAction(meetingId))}>
+                下一案 ▶
+              </Button>
+            )}
+          </span>
+        )}
 
         <span className="flex flex-wrap items-center gap-2">
-          {current?.motions.map((m) => (
+          {!closed && current?.motions.map((m) => (
             <span key={m.id} className="flex items-center gap-1.5 rounded-lg border-2 border-foreground bg-tone-green-bg px-2.5 py-1">
               <span className="max-w-48 truncate text-sm font-bold" title={m.title}>
                 {m.title}
@@ -107,7 +140,7 @@ export function DisplayChairBar({ meetingId, data }: { meetingId: number; data: 
           {current && current.motions.length === 0 ? (
             <span className="text-xs font-bold text-muted-foreground">此議程沒有表決案</span>
           ) : null}
-          {!current ? (
+          {!current && !closed ? (
             <span className="text-xs font-bold text-muted-foreground">
               實到 {data.checked_in}／應到 {data.total}，按「下一案」進議程 1
             </span>

@@ -122,9 +122,9 @@ export default async function ReportPage({
                   <p className="meta" style={{ margin: "2px 0 6px" }}>
                     同意 {m.agree} / 不同意 {m.against}
                     {(() => {
-                      const o = motionOutcome(m, { present: checkedCount, expected: participants.length });
+                      const o = motionOutcome(m, { present: checkedCount });
                       return o && m.status === "closed"
-                        ? <>　<b>結果：</b>{RESULT_LABEL[o.result]}（{o.reason}；應到 {o.expected}）</>
+                        ? <>　<b>結果：</b>{RESULT_LABEL[o.result]}{o.result !== "tie" ? `（${o.reason}）` : ""}</>
                         : null;
                     })()}
                   </p>

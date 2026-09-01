@@ -122,8 +122,12 @@ async function createSchema(): Promise<void> {
     ALTER TABLE motions ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ;
     ALTER TABLE motions ADD COLUMN IF NOT EXISTS present_count INTEGER;
     ALTER TABLE motions ADD COLUMN IF NOT EXISTS expected_count INTEGER;
-    -- 'passed' | 'rejected' | 'no_quorum'
+    -- 'passed' | 'rejected' | 'tie'
     ALTER TABLE motions ADD COLUMN IF NOT EXISTS result TEXT;
+    -- 2026-09-01 門檻改為四種（plurality / 1/2 / 2/3 / 3/4，不看出席法定人數）：舊值換算，舊的 no_quorum 結果清掉重算
+    UPDATE motions SET threshold = CASE threshold WHEN '1/2+1/2' THEN '1/2' WHEN '2/3+1/2' THEN '1/2' WHEN '2/3+2/3' THEN '2/3' ELSE threshold END
+      WHERE threshold IN ('1/2+1/2', '2/3+1/2', '2/3+2/3');
+    UPDATE motions SET result = NULL WHERE result = 'no_quorum';
 
     -- 具名票（需求：同意／不同意／未投票，公開透明）
     CREATE TABLE IF NOT EXISTS ballots (

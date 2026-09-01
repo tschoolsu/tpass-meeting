@@ -4,17 +4,10 @@ import { pool, query } from "@/lib/db";
 import type { Motion, MotionWithCount, VoteStatus } from "@/lib/meetings";
 import { getMeeting, motionCols, removeAttachmentFiles } from "@/lib/meetings";
 import { fillNames } from "@/lib/name-map";
-import { evaluateMotion, motionOutcome, type MotionEvaluation, type MotionOutcome } from "@/lib/threshold";
+import { evaluateMotion, motionOutcome, THRESHOLD_LABEL, type MotionEvaluation, type MotionOutcome } from "@/lib/threshold";
 
-// 可決門檻的合法值（需求：出席比例 + 同意比例組合）。
-export const THRESHOLDS = [
-  { label: "出席 1/2＋簡單多數", value: "1/2+1/2" },
-  { label: "出席 2/3＋簡單多數", value: "2/3+1/2" },
-  { label: "出席 2/3＋同意 2/3", value: "2/3+2/3" },
-  { label: "同意 3/4", value: "3/4" },
-] as const;
-
-export const VALID_THRESHOLDS: ReadonlySet<string> = new Set(THRESHOLDS.map((t) => t.value));
+// 可決門檻的合法值：規則與標籤在 lib/threshold.ts。
+export const VALID_THRESHOLDS: ReadonlySet<string> = new Set(Object.keys(THRESHOLD_LABEL));
 
 export interface AgendaInput {
   title: string;
@@ -205,7 +198,7 @@ async function settleMotion(client: PoolClient, meetingId: number, motionId: num
     [motionId],
   );
   const tally = { threshold: m.threshold, agree: b[0].agree, against: b[0].against, present: p[0].present, expected: p[0].expected };
-  const ev = evaluateMotion(tally);
+  const ev = evaluateMotion({ threshold: tally.threshold, agree: tally.agree, against: tally.against, present: tally.present });
   await client.query(
     `UPDATE motions
         SET status = 'closed', closed_at = now(), present_count = $2, expected_count = $3, result = $4
@@ -440,7 +433,7 @@ export async function getMotionResults(motionId: number): Promise<{
   const count = (s: VoteStatus) => ballots.filter((b) => b.vote_status === s).length;
   const agree = count("agree");
   const against = count("against");
-  const live = { present: pRows.rows.filter((p) => p.checked_in).length, expected: pRows.rows.length };
+  const live = { present: pRows.rows.filter((p) => p.checked_in).length };
 
   return {
     motion_id: motion.id,

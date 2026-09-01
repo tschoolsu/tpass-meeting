@@ -46,6 +46,10 @@ export function MeetingLive({
   const lastRefreshAt = useRef(0);
   const pendingRefresh = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [dismissedTick, setDismissedTick] = useState(0);
+  // 「會議已結束」彈窗只在「這個分頁看著它從進行中變成結束」時跳；開一個早就結束的會議不跳。
+  const [firstPhase, setFirstPhase] = useState<string | null>(null);
+  const [closedDismissed, setClosedDismissed] = useState(false);
+  if (data && firstPhase === null) setFirstPhase(data.meeting.phase); // 首次快照時記一次（render 期間調整 state 的合法用法）
 
   // refresh：trailing throttle，開票時一票一刷也最多每秒一次。
   useEffect(() => {
@@ -74,6 +78,26 @@ export function MeetingLive({
   );
 
   if (!popup || !data) return null;
+
+  if (data.meeting.phase === "closed" && firstPhase !== null && firstPhase !== "closed" && !closedDismissed) {
+    return (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/30 p-4">
+        <Card className="w-full max-w-sm shadow-[6px_6px_0_0_var(--color-foreground)]">
+          <h3 className="text-lg font-extrabold">會議已結束</h3>
+          <p className="mt-2 text-sm font-medium text-muted-foreground">{data.meeting.title}</p>
+          <div className="mt-5 flex items-center gap-3">
+            <LinkButton href="/" variant="accent" className="flex-1">
+              回首頁
+            </LinkButton>
+            <Button type="button" onClick={() => setClosedDismissed(true)}>
+              留在此頁
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   void dismissedTick; // 只為了在「稍後」後重新計算
   const target = pendingMotionsFor(data).find(
     ({ motion }) => motion.id !== excludeMotionId && !isDismissed(meetingId, motion.id),

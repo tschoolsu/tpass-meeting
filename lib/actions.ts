@@ -236,7 +236,7 @@ export async function addMotionAction(agendaId: number, meetingId: number, formD
     const motionId = await addMotion(meetingId, agendaId, {
       title: String(formData.get("title") ?? ""),
       description: String(formData.get("description") ?? ""),
-      threshold: String(formData.get("threshold") ?? "1/2+1/2"),
+      threshold: String(formData.get("threshold") ?? "1/2"),
     });
     if (!motionId) return { error: "議程項目不存在或未授權" };
   } catch (err) {
@@ -254,7 +254,7 @@ export async function updateMotionAction(motionId: number, meetingId: number, fo
   const updated = await updateMotion(meetingId, motionId, {
     title: String(formData.get("title") ?? ""),
     description: String(formData.get("description") ?? ""),
-    threshold: String(formData.get("threshold") ?? "1/2+1/2"),
+    threshold: String(formData.get("threshold") ?? "1/2"),
   });
   if (!updated) return { error: "表決已經開始或結束，無法修改" };
   await notifyMeetingChanged(meetingId, "edit");

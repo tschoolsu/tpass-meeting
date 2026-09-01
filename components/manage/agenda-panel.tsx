@@ -19,7 +19,7 @@ import {
   updateMotionAction,
   type FormState,
 } from "@/lib/actions";
-import { RESULT_LABEL, THRESHOLD_LABEL, thLabel } from "@/lib/threshold";
+import { DEFAULT_THRESHOLD, RESULT_LABEL, THRESHOLD_LABEL, thLabel } from "@/lib/threshold";
 import { motionLabel } from "@/lib/meeting-status";
 import { Field } from "@/components/field";
 import { FileInput } from "@/components/file-input";
@@ -220,7 +220,7 @@ function AddMotionForm({ meetingId, agendaId }: { meetingId: number; agendaId: n
         <Input name="title" placeholder="＋ 表決案標題" required maxLength={500} aria-label="表決案標題" />
       </div>
       <div className="w-48">
-        <Select name="threshold" defaultValue="1/2+1/2" className="text-xs font-bold" aria-label="門檻">
+        <Select name="threshold" defaultValue={DEFAULT_THRESHOLD} className="text-xs font-bold" aria-label="門檻">
           {Object.entries(THRESHOLD_LABEL).map(([value, label]) => (
             <option key={value} value={value}>
               {label}

@@ -52,7 +52,7 @@ export default async function BallotsPage({
   }
 
   const grades = [...new Set(matrix.participants.map((p) => p.grade).filter(Boolean))].sort();
-  const live = { present: matrix.participants.filter((p) => p.checked_in).length, expected: matrix.participants.length };
+  const live = { present: matrix.participants.filter((p) => p.checked_in).length };
   const participants = gradeFilter
     ? matrix.participants.filter((p) => p.grade === gradeFilter)
     : matrix.participants;

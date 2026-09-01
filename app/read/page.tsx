@@ -171,7 +171,7 @@ export default async function ReadPage({
                               <span className="text-primary">同意 {m.agree}</span>
                               <span className="text-destructive">不同意 {m.against}</span>
                             </div>
-                            <MotionOutcomeLine motion={m} live={{ present: checkedCount, expected: participants.length }} />
+                            <MotionOutcomeLine motion={m} live={{ present: checkedCount }} />
                           </div>
                         ) : null}
                       </div>

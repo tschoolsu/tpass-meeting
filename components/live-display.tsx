@@ -118,6 +118,18 @@ export function LiveDisplay({ meetingId, canControl = false }: { meetingId: numb
   const checked = data.checked_in;
   const total = data.total;
 
+  // 主席按「結束會議」（或所有議程走完後結束）：投屏只剩一句話。
+  if (data.meeting.phase === "closed") {
+    return (
+      <div className={`flex min-h-screen flex-col items-center justify-center gap-6 bg-background p-10 text-center ${canControl ? "pb-28" : ""}`}>
+        <p className="font-mono text-2xl font-bold text-muted-foreground">{data.meeting.title}</p>
+        <h1 className="text-6xl font-extrabold sm:text-7xl">會議已結束</h1>
+        <p className="font-mono text-2xl font-bold text-muted-foreground">應到 {total} · 實到 {checked}</p>
+        {canControl ? <DisplayChairBar meetingId={meetingId} data={data} /> : null}
+      </div>
+    );
+  }
+
   return (
     <div className={`flex min-h-screen flex-col justify-between gap-10 bg-background p-10 sm:p-14 ${canControl ? "pb-28" : ""}`}>
       <header className="text-center">
@@ -164,7 +176,7 @@ export function LiveDisplay({ meetingId, canControl = false }: { meetingId: numb
                         </div>
                         {open || closed ? (
                           <div className="mt-4">
-                            <MotionOutcomeLine motion={m} live={{ present: checked, expected: total }} size="lg" />
+                            <MotionOutcomeLine motion={m} live={{ present: checked }} size="lg" />
                           </div>
                         ) : null}
                         {open || closed ? (

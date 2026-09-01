@@ -6,9 +6,11 @@ import {
   nextAgendaItemAction,
   prevAgendaItemAction,
   setCurrentAgendaItemAction,
+  setMeetingStatusAction,
   startVoteAction,
   stopVoteAction,
 } from "@/lib/actions";
+import { ConfirmActionButton } from "@/components/confirm-action-button";
 import { Badge, Button, Card } from "tpass-ui";
 import { motionLabel } from "@/lib/meeting-status";
 import { MotionOutcomeLine } from "@/components/motion-outcome";
@@ -78,9 +80,24 @@ export function ChairControls({
           <Button size="sm" disabled={pending !== null} onClick={() => step("prev")}>
             上一案
           </Button>
-          <Button variant="accent" size="sm" disabled={pending !== null} onClick={() => step("next")}>
-            下一案
-          </Button>
+          {current !== null && agenda.length > 0 && current.id === agenda[agenda.length - 1].id ? (
+            <ConfirmActionButton
+              variant="destructive"
+              size="sm"
+              label="結束會議"
+              pendingLabel="結束中…"
+              action={() => setMeetingStatusAction(meetingId, "closed")}
+              confirm={{
+                title: "確定要結束這場會議嗎？",
+                description: "投屏會顯示「會議已結束」，參與人會收到提示；簽到與表決一併鎖定。之後可在工作台 ① 重新開啟。",
+                confirmLabel: "結束會議",
+              }}
+            />
+          ) : (
+            <Button variant="accent" size="sm" disabled={pending !== null} onClick={() => step("next")}>
+              下一案
+            </Button>
+          )}
         </div>
       </div>
 
@@ -161,7 +178,7 @@ export function ChairControls({
                         </span>
                         {m.status !== "" ? (
                           <span className="basis-full">
-                            <MotionOutcomeLine motion={m} live={{ present, expected }} />
+                            <MotionOutcomeLine motion={m} live={{ present }} />
                           </span>
                         ) : null}
                       </li>

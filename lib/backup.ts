@@ -270,11 +270,11 @@ export async function importAll(data: unknown): Promise<number> {
                                   opened_at, closed_at, present_count, expected_count, result)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
             [agendaId, requireString(mo.title, "motion.title"), mo.description ?? "",
-             mo.threshold ?? "1/2+1/2", mo.status ?? "", Number(mo.position) || 0,
+             mo.threshold ?? "1/2", mo.status ?? "", Number(mo.position) || 0,
              mo.opened_at ? new Date(mo.opened_at).toISOString() : null,
              mo.closed_at ? new Date(mo.closed_at).toISOString() : null,
              mo.present_count ?? null, mo.expected_count ?? null,
-             mo.result === "passed" || mo.result === "rejected" || mo.result === "no_quorum" ? mo.result : null],
+             mo.result === "passed" || mo.result === "rejected" || mo.result === "tie" ? mo.result : null],
           );
           const motionId = motion.rows[0].id;
           for (const b of mo.ballots ?? []) {
