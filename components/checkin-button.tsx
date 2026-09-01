@@ -82,7 +82,7 @@ export function CheckinButton({
         ) : null}
 
         {status === "done" ? (
-          <div className="absolute h-40 w-40 animate-ripple rounded-full border-2 border-foreground bg-primary" />
+          <div className="pointer-events-none absolute h-40 w-40 animate-ripple rounded-full border-2 border-foreground bg-primary" />
         ) : null}
 
         <button
