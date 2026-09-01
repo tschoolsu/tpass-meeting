@@ -10,7 +10,7 @@ export function StaffCheckin({
   participants,
 }: {
   meetingId: number;
-  participants: { email: string; grade: string; checked_in: boolean }[];
+  participants: { email: string; name: string; grade: string; checked_in: boolean }[];
 }) {
   const router = useRouter();
   const [grade, setGrade] = useState<string>("");
@@ -58,7 +58,10 @@ export function StaffCheckin({
         {filtered.map((p) => (
           <li key={p.email} className="flex items-center justify-between gap-3 py-2.5">
             <span className="font-mono text-sm font-bold">
-              {p.email}
+              {p.name}
+              {p.name !== p.email ? (
+                <span className="ml-1.5 text-xs font-bold text-muted-foreground">{p.email}</span>
+              ) : null}
               {p.grade ? <span className="ml-1.5 text-xs font-bold text-muted-foreground">[{p.grade}]</span> : null}
             </span>
             {p.checked_in ? (

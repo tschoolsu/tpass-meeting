@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { isModerator, requireAccess } from "@/lib/auth";
 import { canViewMeeting, getMeeting, isParticipant } from "@/lib/meetings";
 import { getMeetingBallots } from "@/lib/agenda";
+import { displayName } from "@/lib/name-map";
 import { Badge, Card } from "tpass-ui";
 import { LinkButton } from "@/components/link-button";
 
@@ -45,6 +46,8 @@ export default async function BallotsPage({
   }
 
   const grades = [...new Set(matrix.participants.map((p) => p.grade).filter(Boolean))].sort();
+  const names = new Map<string, string>();
+  for (const p of matrix.participants) names.set(p.email, await displayName(p.email));
   const participants = gradeFilter
     ? matrix.participants.filter((p) => p.grade === gradeFilter)
     : matrix.participants;
@@ -101,7 +104,10 @@ export default async function BallotsPage({
               {participants.map((p) => (
                 <tr key={p.email} className="border-b border-dashed border-foreground/20">
                   <td className="px-3 py-2 font-mono text-xs font-bold">
-                    {p.email}
+                    {names.get(p.email)}
+                    {names.get(p.email) !== p.email ? (
+                      <span className="ml-1.5 text-[10px] font-bold text-muted-foreground">{p.email}</span>
+                    ) : null}
                     {p.grade ? <span className="ml-1.5 text-[10px] font-bold text-muted-foreground">{p.grade}</span> : null}
                   </td>
                   {matrix.motions.map((m) => {

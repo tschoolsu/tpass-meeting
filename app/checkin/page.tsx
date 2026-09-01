@@ -3,6 +3,7 @@ import { isAdmin, requireAccess } from "@/lib/auth";
 import { canWriteNotes, getCheckInState, getMeeting, getMeetingDetail, isParticipant } from "@/lib/meetings";
 import { CheckinButton } from "@/components/checkin-button";
 import { StaffCheckin } from "@/components/staff-checkin";
+import { displayName } from "@/lib/name-map";
 import { formatTaipei, isStarted } from "@/lib/time";
 import { Badge, Card } from "tpass-ui";
 import { LinkButton } from "@/components/link-button";
@@ -72,11 +73,14 @@ export default async function CheckinPage({
         <div className="mt-8">
           <StaffCheckin
             meetingId={id}
-            participants={detail.participants.map((p) => ({
-              email: p.email,
-              grade: p.grade,
-              checked_in: p.checked_in,
-            }))}
+            participants={await Promise.all(
+              detail.participants.map(async (p) => ({
+                email: p.email,
+                name: await displayName(p.email),
+                grade: p.grade,
+                checked_in: p.checked_in,
+              })),
+            )}
           />
         </div>
       ) : null}

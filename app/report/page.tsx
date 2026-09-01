@@ -4,6 +4,7 @@ import { canViewMeeting, getMeetingDetail, isParticipant } from "@/lib/meetings"
 import { getMeetingBallots } from "@/lib/agenda";
 import { formatTaipei } from "@/lib/time";
 import { thLabel } from "@/lib/threshold";
+import { displayName } from "@/lib/name-map";
 import { derivePhase, MANAGE_PHASE_META, motionLabel } from "@/lib/meeting-status";
 import { PrintButton } from "@/components/print-button";
 
@@ -32,6 +33,8 @@ export default async function ReportPage({
 
   const { meeting, participants, agenda, notes } = detail;
   const checkedCount = participants.filter((p) => p.checked_in).length;
+  const names = new Map<string, string>();
+  for (const p of participants) names.set(p.email, await displayName(p.email));
 
   // 每個 motion：participantEmail -> 投票狀態（未投 → "未投票"）
   const statusZh: Record<string, string> = { agree: "同意", against: "不同意" };
@@ -84,12 +87,15 @@ export default async function ReportPage({
       <p className="meta"><b>應到：</b>{participants.length} 人　<b>已簽到：</b>{checkedCount} 人</p>
       <table>
         <thead>
-          <tr><th style={{ width: "22%" }}>信箱</th><th style={{ width: "12%" }}>年級</th><th>狀態</th></tr>
+          <tr><th style={{ width: "22%" }}>參與人</th><th style={{ width: "12%" }}>年級</th><th>狀態</th></tr>
         </thead>
         <tbody>
           {participants.map((p) => (
             <tr key={p.email}>
-              <td>{p.email}</td>
+              <td>
+                {names.get(p.email)}
+                {names.get(p.email) !== p.email ? <span className="meta">（{p.email}）</span> : null}
+              </td>
               <td>{p.grade || "—"}</td>
               <td>{p.checked_in ? "已簽到" : "未簽到"}</td>
             </tr>
@@ -120,7 +126,7 @@ export default async function ReportPage({
                   <table>
                     <thead>
                       <tr>
-                        <th style={{ width: "30%" }}>信箱</th>
+                        <th style={{ width: "30%" }}>參與人</th>
                         <th style={{ width: "12%" }}>年級</th>
                         <th>意見</th>
                       </tr>
@@ -128,7 +134,10 @@ export default async function ReportPage({
                     <tbody>
                       {participants.map((p) => (
                         <tr key={`${m.id}-${p.email}`}>
-                          <td>{p.email}</td>
+                          <td>
+                            {names.get(p.email)}
+                            {names.get(p.email) !== p.email ? <span className="meta">（{p.email}）</span> : null}
+                          </td>
                           <td>{p.grade || "—"}</td>
                           <td>{ballotOf(m.id, p.email)}</td>
                         </tr>

@@ -21,6 +21,7 @@ export function MeetingWorkbench({
   emailEnabled,
   checkinUrl,
   departments,
+  names,
 }: {
   detail: MeetingDetail;
   editors: MeetingEditor[];
@@ -28,6 +29,7 @@ export function MeetingWorkbench({
   emailEnabled: boolean;
   checkinUrl: string;
   departments: string[];
+  names: Record<string, string>;
 }) {
   const { meeting, participants, agenda, notes } = detail;
   const phase = derivePhase(meeting.status, meeting.starts_at);
@@ -54,7 +56,7 @@ export function MeetingWorkbench({
       key: "participants",
       title: "參與人",
       summary: `${participants.length} 人・已簽到 ${counts.checkedIn}`,
-      content: <ParticipantsPanel meetingId={meeting.id} participants={participants} />,
+      content: <ParticipantsPanel meetingId={meeting.id} participants={participants} names={names} />,
     },
     {
       key: "agenda",
