@@ -31,9 +31,6 @@ export function Header({ isLoggedIn, userName, userEmail, loginUrl, logoutUrl, p
 
         {isLoggedIn ? (
           <div className="flex min-w-0 items-center gap-3">
-            <Link href="/my" className={`${NAV_LINK} shrink-0`}>
-              我的會議
-            </Link>
             {isAdmin && (
               <Link
                 href="/panel"

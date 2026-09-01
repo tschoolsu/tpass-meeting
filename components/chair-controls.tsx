@@ -9,6 +9,7 @@ import {
   stopVoteAction,
 } from "@/lib/actions";
 import { Badge, Button, Card } from "tpass-ui";
+import { motionLabel } from "@/lib/meeting-status";
 
 export function ChairControls({
   meetingId,
@@ -110,7 +111,7 @@ export function ChairControls({
                         <span className="text-sm font-bold">{m.title}</span>
                         <span className="flex items-center gap-2">
                           <Badge className={open ? "bg-tone-green-badge" : "bg-secondary"}>
-                            {m.status === "open" ? "表決中" : m.status === "closed" ? "已結算" : "未開放"}
+                            {motionLabel(m.status)}
                           </Badge>
                           {open ? (
                             <Button

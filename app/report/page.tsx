@@ -4,16 +4,10 @@ import { getMeetingDetail } from "@/lib/meetings";
 import { getMeetingBallots } from "@/lib/agenda";
 import { formatTaipei } from "@/lib/time";
 import { thLabel } from "@/lib/threshold";
+import { derivePhase, MANAGE_PHASE_META, motionLabel } from "@/lib/meeting-status";
 import { PrintButton } from "@/components/print-button";
 
 export const dynamic = "force-dynamic";
-
-const statusLabel: Record<string, string> = {
-  draft: "草稿",
-  published: "已發布",
-  live: "進行中",
-  closed: "已結束",
-};
 
 export default async function ReportPage({
   searchParams,
@@ -74,7 +68,7 @@ export default async function ReportPage({
       <h1>{meeting.department ? `[${meeting.department}] ` : ""}{meeting.title}</h1>
       <p className="meta">
         <b>時間：</b>{formatTaipei(meeting.starts_at)}（UTC+8）
-        <span>　</span><b>狀態：</b>{statusLabel[meeting.status] ?? meeting.status}
+        <span>　</span><b>狀態：</b>{MANAGE_PHASE_META[derivePhase(meeting.status, meeting.starts_at)].label}
       </p>
       {meeting.location ? <p className="meta"><b>地點：</b>{meeting.location}</p> : null}
       {meeting.online_link ? <p className="meta"><b>線上：</b>{meeting.online_link}</p> : null}
@@ -113,7 +107,7 @@ export default async function ReportPage({
                 <div key={m.id}>
                   <p className="agenda-title" style={{ margin: "4px 0" }}>
                     · {m.title}
-                    <span className="meta">（{thLabel(m.threshold)}；{m.status === "open" ? "表決中" : m.status === "closed" ? "已結算" : "未開放"}）</span>
+                    <span className="meta">（{thLabel(m.threshold)}；{motionLabel(m.status)}）</span>
                   </p>
                   <p className="meta" style={{ margin: "2px 0 6px" }}>
                     同意 {m.agree} / 不同意 {m.against}

@@ -11,6 +11,7 @@ import { CopyLinkButton } from "@/components/copy-link";
 import { BgmPlayer } from "@/components/bgm-player";
 import { AgendaManager } from "@/components/agenda-manager";
 import { thLabel } from "@/lib/threshold";
+import { derivePhase, motionLabel, PUBLIC_PHASE_META } from "@/lib/meeting-status";
 import { ParticipantBulk } from "@/components/participant-bulk";
 import { LiveAutoRefresh } from "@/components/live-auto-refresh";
 import { VotePopup } from "@/components/vote-popup";
@@ -51,6 +52,7 @@ export default async function ReadPage({
   const notCheckedIn = participants.filter((p) => !p.checked_in);
   const checkedCount = participants.length - notCheckedIn.length;
   const started = isStarted(meeting.starts_at);
+  const phase = derivePhase(meeting.status, meeting.starts_at);
 
   // 目前有「表決中」的表決案（供使用者立即前往投票）
   const openMotions = agenda.flatMap((a) => a.motions).filter((m) => m.status === "open");
@@ -71,13 +73,7 @@ export default async function ReadPage({
               <span className="font-mono text-xs font-bold text-muted-foreground">
                 {formatTaipei(meeting.starts_at)}（UTC+8）
               </span>
-              {meeting.status !== "draft" ? (
-                <Badge className={meeting.status === "closed" ? "bg-secondary" : "bg-accent/10"}>
-                  {meeting.status === "published" ? "已發布" : meeting.status === "live" ? "進行中" : "已結束"}
-                </Badge>
-              ) : (
-                <Badge className="bg-secondary">草稿</Badge>
-              )}
+              <Badge className={PUBLIC_PHASE_META[phase].badgeClass}>{PUBLIC_PHASE_META[phase].label}</Badge>
             </div>
             <h1 className="mt-2 text-2xl font-extrabold leading-snug tracking-tight sm:text-3xl">
               {meeting.department ? <span className="text-tone-green-text">[{meeting.department}] </span> : null}
@@ -201,7 +197,7 @@ export default async function ReadPage({
                           <div className="flex items-center gap-2">
                             <Badge className="bg-secondary">{thLabel(m.threshold)}</Badge>
                             <Badge className={m.status === "open" ? "bg-accent" : m.status === "closed" ? "bg-secondary" : "bg-tone-green-badge"}>
-                              {m.status === "open" ? "表決中" : m.status === "closed" ? "已結算" : "未開放"}
+                              {motionLabel(m.status)}
                             </Badge>
                           </div>
                         </div>

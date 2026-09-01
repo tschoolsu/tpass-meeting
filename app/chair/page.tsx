@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { isAdmin, requireManager } from "@/lib/auth";
 import { getMeetingDetail } from "@/lib/meetings";
+import { motionLabel } from "@/lib/meeting-status";
 import { ChairControls } from "@/components/chair-controls";
 import { LiveAutoRefresh } from "@/components/live-auto-refresh";
 import { Badge, Card } from "tpass-ui";
@@ -63,7 +64,7 @@ export default async function ChairPage({
                 <div key={m.id} className="mt-2 flex items-center justify-between rounded-lg border-2 border-foreground bg-tone-green-bg px-3 py-2">
                   <span className="text-sm font-bold">{m.title}</span>
                   <Badge className={m.status === "open" ? "bg-accent" : m.status === "closed" ? "bg-secondary" : "bg-tone-green-badge"}>
-                    {m.status === "open" ? "表決中" : m.status === "closed" ? "已結算" : "未開放"}
+                    {motionLabel(m.status)}
                   </Badge>
                 </div>
               ))}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useLiveState } from "@/components/live-polling";
+import { motionLabel } from "@/lib/meeting-status";
 
 export function LiveDisplay({ meetingId }: { meetingId: number }) {
   const { data, error } = useLiveState(meetingId);
@@ -63,7 +64,7 @@ export function LiveDisplay({ meetingId }: { meetingId: number }) {
                               open ? "animate-pulse bg-accent text-primary-foreground" : closed ? "bg-secondary" : "bg-tone-green-badge"
                             }`}
                           >
-                            {open ? "表決中" : closed ? "已結算" : "尚未開放"}
+                            {motionLabel(m.status)}
                           </span>
                         </div>
                         {open || closed ? (

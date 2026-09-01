@@ -3,7 +3,6 @@ import { listMeetings, listMyMeetings } from "@/lib/meetings";
 import { MeetingFilter } from "@/components/meeting-filter";
 import { canStudentCreate } from "@/lib/permissions";
 import { serviceConfig } from "@/config/service";
-import { Card } from "tpass-ui";
 import { PageHeader } from "@/components/page-header";
 import { LinkButton } from "@/components/link-button";
 
@@ -20,7 +19,7 @@ export default async function HomePage() {
   return (
     <div>
       <PageHeader
-        title={isManager ? "會議列表" : "所有會議"}
+        title={isManager ? "會議列表" : "我受邀的會議"}
         desc={
           isManager
             ? "條列顯示所有會議記錄，可使用搜尋或部會標籤篩選。"
@@ -34,18 +33,6 @@ export default async function HomePage() {
           ) : undefined
         }
       />
-
-      {!isManager ? (
-        <Card className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-extrabold">我受邀的會議</h2>
-            <p className="text-sm text-muted-foreground">檢視你需出席的各項會議。</p>
-          </div>
-          <LinkButton href="/my" variant="accent">
-            前往「我受邀的會議」
-          </LinkButton>
-        </Card>
-      ) : null}
 
       <MeetingFilter meetings={meetings} departments={serviceConfig.departments} canCreate={allowCreate} />
     </div>

@@ -52,7 +52,7 @@ export function loginUrlFor(returnPath = "/"): string {
   return tpass.loginUrl(returnPath);
 }
 
-// 頁面守門：未登入 → auth；ban → portal；read=false → denied。
+// 頁面守門：未登入 → auth；ban → portal；read=false → denied；角色不夠 → 站內 /forbidden（不彈出站外）。
 // 一般學生（default 非 warning）也可瀏覽，但僅能存取自己受邀的會議（需求：T-Pass 入口）。
 export async function requireAccess(returnPath = "/"): Promise<TPassClaims> {
   const session = await getSession();
@@ -66,13 +66,13 @@ export async function requireAccess(returnPath = "/"): Promise<TPassClaims> {
 // 建立／編輯／刪除會議需要 moderator 或 admin。
 export async function requireManager(returnPath = "/"): Promise<TPassClaims> {
   const session = await requireAccess(returnPath);
-  if (!isModerator(session)) redirect(authConfig.portalUrl);
+  if (!isModerator(session)) redirect("/forbidden");
   return session;
 }
 
 // 管理面板與進階管理功能只有 admin。
 export async function requireAdmin(returnPath = "/panel"): Promise<TPassClaims> {
   const session = await requireAccess(returnPath);
-  if (!isAdmin(session)) redirect(authConfig.portalUrl);
+  if (!isAdmin(session)) redirect("/forbidden");
   return session;
 }

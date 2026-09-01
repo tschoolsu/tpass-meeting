@@ -133,6 +133,7 @@ export async function checkInAction(meetingId: number): Promise<FormState & { do
   const session = await requireAccess();
   const meeting = await getMeeting(meetingId);
   if (!meeting) return { error: "找不到會議" };
+  if (meeting.status === "closed") return { error: "會議已結束，無法簽到" };
   if (!isStarted(meeting.starts_at)) return { error: "會議尚未開始，開始後才能簽到" };
   const invited = await isParticipant(meetingId, session.email);
   if (!invited) return { error: "你未被邀請參與這場會議" };
@@ -234,6 +235,8 @@ export async function startVoteAction(motionId: number, meetingId: number): Prom
   const session = await requireManager();
   const ok = await canEditMeeting(meetingId, session);
   if (!ok) return { error: "你沒有權限控制這份會議" };
+  const meeting = await getMeeting(meetingId);
+  if (meeting?.status === "closed") return { error: "會議已結束，無法開放表決" };
   await startVote(motionId);
 
   // 即時推播：表決開始 → VOTE_STARTED（帶上該表決案的選項內容）
@@ -308,6 +311,7 @@ export async function voteAction(
   const session = await requireAccess();
   const meeting = await getMeeting(meetingId);
   if (!meeting) return { error: "找不到會議" };
+  if (meeting.status === "closed") return { error: "會議已結束，無法表決" };
   if (!isStarted(meeting.starts_at)) return { error: "會議尚未開始，開始後才能表決" };
   if (!(await isParticipant(meetingId, session.email))) {
     return { error: "你未被邀請參與這場會議的表決" };
@@ -393,11 +397,15 @@ export async function addParticipantEmailsAction(meetingId: number, _prev: FormS
 }
 
 // ---- 工作人員現場簽到（需求 1d：年級篩選，各年級工作人員協助登入簽到） ----
+// 「工作人員」＝ admin、建立者、或建立者授權的協作者（meeting_editors）；
+// 不是任一 moderator——否則任何幹部都能對別人的會議代簽到。
 
 export async function staffCheckInAction(meetingId: number, email: string): Promise<FormState> {
-  await requireManager();
+  const session = await requireManager();
   const meeting = await getMeeting(meetingId);
   if (!meeting) return { error: "找不到會議" };
+  if (!(await canWriteNotes(meeting, session, isAdmin(session)))) return { error: "你沒有權限為這場會議代簽到" };
+  if (meeting.status === "closed") return { error: "會議已結束，無法簽到" };
   if (!isStarted(meeting.starts_at)) return { error: "會議尚未開始，開始後才能簽到" };
   if (!(await isParticipant(meetingId, email))) return { error: "此人未被邀請" };
   const status = await setCheckIn(meetingId, email);

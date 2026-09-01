@@ -14,6 +14,7 @@ import { Button, Card, Input, Select, Textarea } from "tpass-ui";
 import { Field } from "@/components/field";
 import { FileInput } from "@/components/file-input";
 import { THRESHOLD_LABEL, thLabel } from "@/lib/threshold";
+import { motionLabel } from "@/lib/meeting-status";
 
 export function AgendaManager({
   meetingId,
@@ -108,7 +109,7 @@ export function AgendaManager({
                     <p className="truncate text-sm font-bold">{m.title}</p>
                     <p className="text-[11px] font-bold text-muted-foreground">
                       {thLabel(m.threshold)} ·{" "}
-                      {m.status === "open" ? "表決中" : m.status === "closed" ? "已結算" : "未開放"}
+                      {motionLabel(m.status)}
                     </p>
                   </div>
                   <form
