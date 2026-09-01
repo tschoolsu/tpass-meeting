@@ -339,6 +339,10 @@ export async function voteAction(
   status: VoteStatus,
 ): Promise<FormState> {
   const session = await requireAccess();
+  // ERR-002：server 端校驗投票選項，避免非法 enum 觸發 DB CHECK 例外（500）。
+  if (status !== "agree" && status !== "against") {
+    return { error: "投票選項不正確" };
+  }
   const meeting = await getMeeting(meetingId);
   if (!meeting) return { error: "找不到會議" };
   if (meeting.status === "closed") return { error: "會議已結束，無法表決" };
@@ -349,6 +353,7 @@ export async function voteAction(
   const result = await submitBallot(motionId, session.email, status);
   if (result === "not-open") return { error: "表決尚未開放，或已經結束" };
   if (result === "duplicate") return { error: "你已經完成這項表決，無法更改" };
+  if (result === "invalid") return { error: "投票選項不正確" };
   revalidatePath(`/read?id=${meetingId}`);
   revalidatePath(`/display?id=${meetingId}`);
   return {};

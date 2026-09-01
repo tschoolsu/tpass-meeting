@@ -263,7 +263,9 @@ async function getMeetingOfAgenda(agendaItemId: number): Promise<number> {
   return rows[0]?.meeting_id ?? 0;
 }
 
-export async function submitBallot(motionId: number, voterEmail: string, status: VoteStatus): Promise<"ok" | "duplicate" | "not-open"> {
+export async function submitBallot(motionId: number, voterEmail: string, status: VoteStatus): Promise<"ok" | "duplicate" | "not-open" | "invalid"> {
+  // ERR-002：防禦性校驗，避免非法投票選項觸發 DB CHECK 例外。
+  if (status !== "agree" && status !== "against") return "invalid";
   const motion = await getMotion(motionId);
   if (!motion) return "not-open";
   if (motion.status !== "open") return "not-open"; // 未開始表決禁止投票（需求）
