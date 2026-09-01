@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Card } from "tpass-ui";
 import { LinkButton } from "@/components/link-button";
-import { useLiveState } from "@/components/live-polling";
+import { useLiveStateContext } from "@/components/live-state";
 
 // 主席開放表決時，與會者端跳出一個彈窗，可一鍵進入表決。其餘 UI 不動。
-export function VotePopup({ meetingId, enabled }: { meetingId: number; enabled: boolean }) {
-  const { data } = useLiveState(meetingId, enabled);
+// 資料來源改用頁面共用的 LiveStateProvider（C-2），不再各自開一條 SSE。
+export function VotePopup({ enabled }: { enabled: boolean }) {
+  const { data } = useLiveStateContext();
   const [popup, setPopup] = useState<{ id: number; title: string } | null>(null);
   const seenOpen = useRef<Set<number>>(new Set());
   const bootstrapped = useRef(false);

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { isModerator, requireAccess } from "@/lib/auth";
 import { canViewMeeting, getMeeting, isParticipant } from "@/lib/meetings";
+import { LiveStateProvider } from "@/components/live-state";
 import { LiveDisplay } from "@/components/live-display";
 
 export const dynamic = "force-dynamic";
@@ -25,5 +26,9 @@ export default async function DisplayPage({
     notFound();
   }
 
-  return <LiveDisplay meetingId={id} />;
+  return (
+    <LiveStateProvider meetingId={id}>
+      <LiveDisplay />
+    </LiveStateProvider>
+  );
 }

@@ -1,10 +1,10 @@
 "use client";
 
-import { useLiveState } from "@/components/live-polling";
+import { useLiveStateContext } from "@/components/live-state";
 import { motionLabel } from "@/lib/meeting-status";
 
-export function LiveDisplay({ meetingId }: { meetingId: number }) {
-  const { data, error } = useLiveState(meetingId);
+export function LiveDisplay() {
+  const { data, error } = useLiveStateContext();
 
   if (error) {
     return (

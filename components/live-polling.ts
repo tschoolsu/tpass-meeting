@@ -4,7 +4,11 @@ import { useEffect, useRef, useState } from "react";
 
 // 即時連線（需求：表決動態即時更新）：
 // 主通道為 Server-Sent Events（/api/live/meeting/:id/stream），收到 VOTE_STARTED /
-// VOTE_CLOSED 等事件時即時更新 state；SSE 失效時自動降級為短輪詢。
+// VOTE_CLOSED / AGENDA_CHANGED / CHECKIN 等事件時即時更新 state。
+//
+// C-2：SSE 健康時【停止輪詢】——輪詢只當降級用（SSE 斷線／靜默掛掉才開啟），
+// 並用 heartbeat watchdog 偵測「SSE 看似連著但已經不送東西」的狀態。
+// 這樣每個線上用戶不會再無條件每 3 秒打一次 /api/live/:id，負載不再線性跟著用戶數走。
 export interface LiveMotion {
   id: number;
   title: string;
@@ -30,7 +34,9 @@ export interface LiveState {
   agenda: LiveAgendaItem[];
 }
 
-const POLL_MS = 3000;
+const POLL_MS = 3000; // 降級模式的輪詢間隔
+const HEARTBEAT_WATCHDOG_MS = 30_000; // 每 30s 檢查一次 SSE 是否還活著
+const STALE_SSE_MS = 60_000; // 超過 60s 沒收到任何事件（含 heartbeat）視為掛掉
 
 export function useLiveState(meetingId: number, enabled = true): {
   data: LiveState | null;
@@ -45,7 +51,9 @@ export function useLiveState(meetingId: number, enabled = true): {
     let cancelled = false;
     let es: EventSource | null = null;
     let pollTimer: ReturnType<typeof setInterval> | null = null;
-    let sseOk = true;
+    let watchdog: ReturnType<typeof setInterval> | null = null;
+    let lastEventAt = 0;
+    let sseOk = false;
 
     async function snapshot() {
       try {
@@ -61,42 +69,89 @@ export function useLiveState(meetingId: number, enabled = true): {
       }
     }
 
-    // 主通道：SSE
-    try {
-      es = new EventSource(`/api/live/meeting/${meetingId}/stream`);
-      esRef.current = es;
+    function stopPolling() {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    }
 
-      es.addEventListener("connected", () => {
+    function startPolling() {
+      if (!pollTimer) pollTimer = setInterval(snapshot, POLL_MS);
+    }
+
+    function openSse() {
+      let source: EventSource;
+      try {
+        source = new EventSource(`/api/live/meeting/${meetingId}/stream`);
+      } catch {
+        sseOk = false;
+        startPolling();
+        return;
+      }
+      es = source;
+      esRef.current = source;
+
+      source.addEventListener("connected", () => {
+        lastEventAt = Date.now();
         sseOk = true;
+        stopPolling();
         snapshot();
       });
-      es.addEventListener("VOTE_STARTED", (e) => {
+      source.addEventListener("heartbeat", () => {
+        lastEventAt = Date.now();
+      });
+      source.addEventListener("VOTE_STARTED", (e) => {
+        lastEventAt = Date.now();
         const { motion } = JSON.parse(e.data) as { motion: LiveMotion };
         setData((prev) => (prev ? mergeMotion(prev, { ...motion, status: "open" }) : prev));
       });
-      es.addEventListener("VOTE_CLOSED", (e) => {
-        const { motionId } = JSON.parse(e.data) as { motionId: number };
-        setData((prev) => (prev ? setMotionStatus(prev, motionId, "closed") : prev));
+      source.addEventListener("VOTE_CLOSED", () => {
+        lastEventAt = Date.now();
+        // 結算後撈一次完整快照，拿到最終票數（結算是低頻事件，每個 viewer 一次 OK）
+        snapshot();
       });
-      es.onerror = () => {
-        // SSE 異常：輪詢已在背景執行，仍保有即時更新能力
+      source.addEventListener("AGENDA_CHANGED", () => {
+        lastEventAt = Date.now();
+        // 現行議程被主席推進：撈一次快照
+        snapshot();
+      });
+      source.addEventListener("CHECKIN", () => {
+        lastEventAt = Date.now();
+        // 簽到只增不減：本地 +1 就好，不必每個 viewer 都整包 snapshot
+        setData((prev) => (prev ? { ...prev, checked_in: prev.checked_in + 1 } : prev));
+      });
+      source.onerror = () => {
+        // SSE 異常：降級輪詢，等下一次重連成功再停掉
         sseOk = false;
+        startPolling();
       };
-    } catch {
-      sseOk = false;
     }
 
-    // 無論 SSE 是否正常，都開輪詢作為「保證可靠」的主同步管道：
-    // REST snapshot（/api/live/meeting/:id）是唯一事實來源，已實測穩定。
-    // SSE 只是加速；輪詢確保即使 SSE 斷線/收不到，狀態仍自動更新。
-    pollTimer = setInterval(snapshot, POLL_MS);
-    if (sseOk) snapshot();
+    // 初始：先抓一次快照（第一畫面要有資料），並開啟 SSE。
+    // 收到 connected 前先用輪詢撐著，確保永遠有資料。
+    snapshot();
+    openSse();
+    startPolling();
+
+    watchdog = setInterval(() => {
+      if (!sseOk) return; // 已降級輪詢，不重複處理
+      if (Date.now() - lastEventAt > STALE_SSE_MS) {
+        // SSE 靜默掛掉（沒 error 事件、也不送 heartbeat）：關掉重連 + 暫時回到輪詢
+        sseOk = false;
+        es?.close();
+        es = null;
+        startPolling();
+        openSse();
+      }
+    }, HEARTBEAT_WATCHDOG_MS);
 
     return () => {
       cancelled = true;
-      esRef.current?.close();
+      es?.close();
       esRef.current = null;
       if (pollTimer) clearInterval(pollTimer);
+      if (watchdog) clearInterval(watchdog);
     };
   }, [meetingId, enabled]);
 
@@ -117,15 +172,4 @@ function mergeMotion(state: LiveState, motion: LiveMotion): LiveState {
     agenda,
     current: agenda.find((a) => a.motions.some((m) => m.id === motion.id)) ?? state.current,
   };
-}
-
-function setMotionStatus(state: LiveState, motionId: number, status: string): LiveState {
-  let found = false;
-  const agenda = state.agenda.map((a) => {
-    if (!a.motions.some((m) => m.id === motionId)) return a;
-    found = true;
-    return { ...a, motions: a.motions.map((m) => (m.id === motionId ? { ...m, status } : m)) };
-  });
-  if (!found) return state;
-  return { ...state, agenda };
 }

@@ -164,9 +164,11 @@ export async function checkInAction(meetingId: number): Promise<FormState & { do
   const invited = await isParticipant(meetingId, session.email);
   if (!invited) return { error: "你未被邀請參與這場會議" };
   const status = await setCheckIn(meetingId, session.email);
+  if (status === "not-invited") return { error: "你未被邀請參與這場會議" };
+  // 廣播簽到事件：SSE 健康時前端不再靠 3 秒輪詢追變化（C-2）
+  if (status === "ok") await broadcast(meetingId, "CHECKIN", { meetingId, email: session.email });
   revalidatePath(`/read?id=${meetingId}`);
   revalidatePath(`/checkin?id=${meetingId}`);
-  if (status === "not-invited") return { error: "你未被邀請參與這場會議" };
   return { done: true };
 }
 
@@ -314,6 +316,8 @@ export async function setCurrentAgendaItemAction(meetingId: number, agendaItemId
   const ok = await canEditMeeting(meetingId, session);
   if (!ok) return { error: "你沒有權限控制這份會議" };
   await setCurrentAgendaItem(meetingId, agendaItemId);
+  // 廣播議程切換：/display、/read 收到後撈一次快照即可（C-2）
+  await broadcast(meetingId, "AGENDA_CHANGED", { meetingId, agendaItemId });
   revalidatePath(`/read?id=${meetingId}`);
   revalidatePath(`/chair?id=${meetingId}`);
   revalidatePath(`/display?id=${meetingId}`);
@@ -325,6 +329,7 @@ export async function nextAgendaItemAction(meetingId: number): Promise<FormState
   const ok = await canEditMeeting(meetingId, session);
   if (!ok) return { error: "你沒有權限控制這份會議" };
   const hasNext = await nextAgendaItem(meetingId);
+  if (hasNext) await broadcast(meetingId, "AGENDA_CHANGED", { meetingId });
   revalidatePath(`/read?id=${meetingId}`);
   revalidatePath(`/chair?id=${meetingId}`);
   revalidatePath(`/display?id=${meetingId}`);
@@ -453,6 +458,7 @@ export async function staffCheckInAction(meetingId: number, email: string): Prom
   if (!isStarted(meeting.starts_at)) return { error: "會議尚未開始，開始後才能簽到" };
   if (!(await isParticipant(meetingId, email))) return { error: "此人未被邀請" };
   const status = await setCheckIn(meetingId, email);
+  if (status === "ok") await broadcast(meetingId, "CHECKIN", { meetingId, email });
   revalidatePath(`/checkin?id=${meetingId}`);
   return { error: status === "not-invited" ? "此人未被邀請" : undefined };
 }
