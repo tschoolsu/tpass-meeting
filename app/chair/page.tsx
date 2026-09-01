@@ -6,7 +6,7 @@ import { getMeetingDetail } from "@/lib/meetings";
 import { authConfig } from "@/config/auth";
 import { derivePhase, MANAGE_PHASE_META } from "@/lib/meeting-status";
 import { ChairControls } from "@/components/chair-controls";
-import { LiveAutoRefresh } from "@/components/live-auto-refresh";
+import { MeetingLive } from "@/components/meeting-live";
 import { CopyLinkButton } from "@/components/copy-link";
 import { Forbidden } from "@/components/forbidden";
 import { Badge, Card } from "tpass-ui";
@@ -36,7 +36,7 @@ export default async function ChairPage({
 
   return (
     <div className="mx-auto max-w-3xl">
-      <LiveAutoRefresh meetingId={id} />
+      <MeetingLive meetingId={id} />
       <div className="flex flex-wrap items-center gap-2">
         <LinkButton href={`/manage?id=${id}`} size="sm">
           ← 回工作台

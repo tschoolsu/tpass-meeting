@@ -6,6 +6,7 @@ import { StaffCheckin } from "@/components/staff-checkin";
 import { formatTaipei, isStarted } from "@/lib/time";
 import { Badge, Card } from "tpass-ui";
 import { LinkButton } from "@/components/link-button";
+import { MeetingLive } from "@/components/meeting-live";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,8 @@ export default async function CheckinPage({
 
   return (
     <div className="mx-auto max-w-lg">
-<LinkButton href={`/read?id=${id}`} className="mb-8">
+      <MeetingLive meetingId={id} />
+      <LinkButton href={`/read?id=${id}`} className="mb-8">
         ← 返回會議
       </LinkButton>
 

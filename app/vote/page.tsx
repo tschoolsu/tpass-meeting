@@ -4,6 +4,7 @@ import { isParticipant } from "@/lib/meetings";
 import { getMotion, getMotionFlow } from "@/lib/agenda";
 import { formatTaipei, isStarted } from "@/lib/time";
 import { MotionVote } from "@/components/motion-vote";
+import { MeetingLive } from "@/components/meeting-live";
 import { Card } from "tpass-ui";
 import { LinkButton } from "@/components/link-button";
 
@@ -63,6 +64,7 @@ export default async function VotePage({
 
   return (
     <div className="flex min-h-[60vh] flex-col justify-center py-8">
+      <MeetingLive meetingId={meeting.id} refresh={false} excludeMotionId={motionId} />
       <MotionVote
         meetingId={meeting.id}
         motionId={motionId}

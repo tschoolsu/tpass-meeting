@@ -7,6 +7,7 @@ import { serviceConfig } from "@/config/service";
 import { listDepartments } from "@/lib/departments";
 import { Forbidden } from "@/components/forbidden";
 import { MeetingWorkbench } from "@/components/manage/meeting-workbench";
+import { MeetingLive } from "@/components/meeting-live";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,7 @@ export default async function ManagePage({
 
   return (
     <div className="mx-auto max-w-4xl">
+      <MeetingLive meetingId={id} />
       <MeetingWorkbench
         detail={detail}
         editors={editors}

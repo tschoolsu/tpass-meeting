@@ -4,6 +4,7 @@ import { getMeeting } from "@/lib/meetings";
 import { getMeetingBallots } from "@/lib/agenda";
 import { Badge, Card } from "tpass-ui";
 import { LinkButton } from "@/components/link-button";
+import { MeetingLive } from "@/components/meeting-live";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +47,8 @@ export default async function BallotsPage({
 
   return (
     <div className="mx-auto max-w-5xl">
-<LinkButton href={`/read?id=${meetingId}`}>
+      <MeetingLive meetingId={meetingId} />
+      <LinkButton href={`/read?id=${meetingId}`}>
         ← 返回會議
       </LinkButton>
 

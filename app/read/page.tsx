@@ -11,8 +11,7 @@ import { thLabel } from "@/lib/threshold";
 import { derivePhase, motionLabel, primaryCtaFor, PUBLIC_PHASE_META } from "@/lib/meeting-status";
 import { NoteBar } from "@/components/note-bar";
 import { BgmPlayer } from "@/components/bgm-player";
-import { LiveAutoRefresh } from "@/components/live-auto-refresh";
-import { VotePopup } from "@/components/vote-popup";
+import { MeetingLive } from "@/components/meeting-live";
 import { Badge, Card } from "tpass-ui";
 import { LinkButton } from "@/components/link-button";
 
@@ -56,8 +55,7 @@ export default async function ReadPage({
 
   return (
     <div className="mx-auto max-w-4xl">
-      <LiveAutoRefresh meetingId={id} />
-      <VotePopup meetingId={id} enabled={me !== undefined} />
+      <MeetingLive meetingId={id} />
       {bgm ? <BgmPlayer /> : null}
       <LinkButton href="/">← 返回首頁</LinkButton>
 
