@@ -9,7 +9,6 @@ import { bgmInfo } from "@/lib/bgm";
 import { authConfig } from "@/config/auth";
 import { thLabel } from "@/lib/threshold";
 import { displayName } from "@/lib/names";
-import { MotionOutcomeLine } from "@/components/motion-outcome";
 import { derivePhase, motionLabel, primaryCtaFor, PUBLIC_PHASE_META } from "@/lib/meeting-status";
 import { NoteBar } from "@/components/note-bar";
 import { BgmPlayer } from "@/components/bgm-player";
@@ -166,12 +165,9 @@ export default async function ReadPage({
                         </div>
                         {m.description ? <p className="mt-1 text-xs font-medium text-muted-foreground">{m.description}</p> : null}
                         {m.status !== "" ? (
-                          <div className="mt-2 space-y-1">
-                            <div className="flex gap-4 font-mono text-sm font-bold">
-                              <span className="text-primary">同意 {m.agree}</span>
-                              <span className="text-destructive">不同意 {m.against}</span>
-                            </div>
-                            <MotionOutcomeLine motion={m} live={{ present: checkedCount, expected: participants.length }} />
+                          <div className="mt-2 flex gap-4 font-mono text-sm font-bold">
+                            <span className="text-primary">同意 {m.agree}</span>
+                            <span className="text-destructive">不同意 {m.against}</span>
                           </div>
                         ) : null}
                       </div>

@@ -6,7 +6,6 @@ import { useLiveState, type LiveMotion } from "@/components/live-polling";
 import { Badge, Card } from "tpass-ui";
 import { LinkButton } from "@/components/link-button";
 import { thLabel } from "@/lib/threshold";
-import { MotionOutcomeLine } from "@/components/motion-outcome";
 
 export function MotionVote({
   meetingId,
@@ -52,11 +51,6 @@ export function MotionVote({
       <Badge className="bg-tone-green-badge">表決案</Badge>
       <Badge className="ml-2 bg-tone-blue-badge text-tone-blue-text">{thLabel(motion?.threshold ?? "1/2+1/2")}</Badge>
       <h1 className="mt-4 text-2xl font-extrabold leading-snug">{motion?.title ?? "表決"}</h1>
-      {motion && data && motion.status !== "" ? (
-        <div className="mt-3 flex justify-center">
-          <MotionOutcomeLine motion={motion} live={{ present: data.checked_in, expected: data.total }} />
-        </div>
-      ) : null}
 
       {isOpen && !answeredValue && !checkedIn ? (
         <div className="mt-6 rounded-xl border-2 border-foreground bg-secondary px-4 py-4">

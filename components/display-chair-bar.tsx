@@ -8,7 +8,6 @@ import { Badge, Button } from "tpass-ui";
 import { nextAgendaItemAction, prevAgendaItemAction, startVoteAction, stopVoteAction } from "@/lib/actions";
 import type { LiveState } from "@/lib/live-state";
 import { motionLabel } from "@/lib/meeting-status";
-import { RESULT_BADGE_CLASS, RESULT_LABEL } from "@/lib/threshold";
 
 const OPEN_KEY = "tpm:display-bar-open";
 
@@ -88,8 +87,8 @@ export function DisplayChairBar({ meetingId, data }: { meetingId: number; data: 
                   停止表決
                 </Button>
               ) : m.status === "closed" ? (
-                <Badge className={m.result ? RESULT_BADGE_CLASS[m.result] : "bg-secondary"}>
-                  {m.result ? RESULT_LABEL[m.result] : motionLabel(m.status)}
+                <Badge className="bg-secondary">
+                  {motionLabel(m.status)} {m.agree}／{m.against}
                 </Badge>
               ) : (
                 <Button

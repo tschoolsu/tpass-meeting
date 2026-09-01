@@ -19,7 +19,7 @@ import {
   updateMotionAction,
   type FormState,
 } from "@/lib/actions";
-import { RESULT_LABEL, THRESHOLD_LABEL, thLabel } from "@/lib/threshold";
+import { THRESHOLD_LABEL, thLabel } from "@/lib/threshold";
 import { motionLabel } from "@/lib/meeting-status";
 import { Field } from "@/components/field";
 import { FileInput } from "@/components/file-input";
@@ -191,7 +191,6 @@ function MotionRow({ meetingId, motion }: { meetingId: number; motion: AgendaIte
         <p className="font-mono text-[11px] font-bold text-muted-foreground">
           {thLabel(motion.threshold)} · {motionLabel(motion.status)}
           {locked ? ` · 同意 ${motion.agree}／不同意 ${motion.against}` : ""}
-          {motion.status === "closed" && motion.result ? ` · ${RESULT_LABEL[motion.result]}` : ""}
         </p>
       </div>
       <div className="flex items-center gap-1.5">
