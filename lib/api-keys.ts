@@ -41,16 +41,24 @@ export async function deleteApiKey(id: number): Promise<void> {
   await query(`DELETE FROM api_keys WHERE id = $1`, [id]);
 }
 
-// 驗證並更新 last_used_at；回傳該金鑰身分供建立者標記。
+// 驗證並節流更新 last_used_at；回傳該金鑰身分供建立者標記。
+// H-4：改為「先 SELECT 驗證（無鎖）＋ 節流 UPDATE（每 5 分鐘至多一次）」，
+// 避免每個 API request 都對同一列做 UPDATE 造成 row lock 競爭與 write IO 放大。
 export async function authenticateApiKey(key: string): Promise<{ id: number; label: string } | null> {
+  const hash = hashKey(key);
   const { rows } = await query<{ id: number; label: string }>(
+    `SELECT id, label FROM api_keys WHERE key_hash = $1`,
+    [hash],
+  );
+  if (rows.length === 0) return null;
+  await query(
     `UPDATE api_keys
         SET last_used_at = now()
       WHERE key_hash = $1
-      RETURNING id, label`,
-    [hashKey(key)],
+        AND (last_used_at IS NULL OR last_used_at < now() - interval '5 minutes')`,
+    [hash],
   );
-  return rows[0] ?? null;
+  return rows[0];
 }
 
 // 從 Authorization: Bearer 或 ?apikey= 取出金鑰。
