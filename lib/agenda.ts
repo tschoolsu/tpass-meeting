@@ -299,7 +299,7 @@ export async function addAttachment(
 
 export async function getAttachment(id: number): Promise<{ meeting_id: number; filename: string; mime: string; storage_path: string } | null> {
   const { rows } = await query<{ meeting_id: number; filename: string; mime: string; storage_path: string }>(
-    `SELECT a.meeting_id, a.filename, a.mime, a.storage_path
+    `SELECT ai.meeting_id, a.filename, a.mime, a.storage_path
        FROM agenda_attachments a
        JOIN agenda_items ai ON ai.id = a.agenda_item_id
       WHERE a.id = $1`,
