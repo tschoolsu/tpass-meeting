@@ -14,10 +14,12 @@ interface Props extends Omit<ButtonProps, "onClick" | "type"> {
   action: () => Promise<FormState>;
   /** 有給就先跳 ConfirmDialog；沒給就直接執行。 */
   confirm?: { title: string; description?: string; confirmLabel?: string };
+  /** 成功後導去這裡（取代 router.refresh()）；刪除當前頁面的資源時用，避免先 refresh 成 404。 */
+  navigateTo?: string;
   onDone?: () => void;
 }
 
-export function ConfirmActionButton({ label, pendingLabel = "處理中…", action, confirm, onDone, disabled, ...rest }: Props) {
+export function ConfirmActionButton({ label, pendingLabel = "處理中…", action, confirm, navigateTo, onDone, disabled, ...rest }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +34,8 @@ export function ConfirmActionButton({ label, pendingLabel = "處理中…", acti
         setError(res.error);
         return;
       }
-      router.refresh();
+      if (navigateTo) router.replace(navigateTo);
+      else router.refresh();
       onDone?.();
     });
   }

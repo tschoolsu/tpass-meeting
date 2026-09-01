@@ -10,10 +10,15 @@ export function MeetingFilter({
   meetings,
   departments,
   canCreate,
+  currentSub,
+  isAdmin,
 }: {
   meetings: MeetingListItem[];
   departments: string[];
   canCreate: boolean;
+  /** 給卡片決定要不要畫刪除鈕（owner 或 admin）。 */
+  currentSub: string;
+  isAdmin: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [department, setDepartment] = useState("");
@@ -68,7 +73,7 @@ export function MeetingFilter({
       ) : (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
           {filtered.map((m) => (
-            <MeetingCard key={m.id} meeting={m} />
+            <MeetingCard key={m.id} meeting={m} canDelete={isAdmin || m.owner_sub === currentSub} />
           ))}
         </div>
       )}

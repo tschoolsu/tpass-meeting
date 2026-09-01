@@ -2,6 +2,7 @@ import "server-only";
 import { pool, query } from "@/lib/db";
 import { parseTaipeiLocal } from "@/lib/time";
 import type { MotionResult } from "@/lib/threshold";
+import { deleteAttachmentFile } from "@/lib/attachment-store";
 
 export interface Meeting {
   id: number;
@@ -445,8 +446,25 @@ export async function deleteMeeting(id: number, ownerSub: string, isAdmin: boole
   if (!meeting) return false;
   if (!isAdmin && meeting.owner_sub !== ownerSub) return false;
 
+  // 子表全部 ON DELETE CASCADE；只有附件的實體檔案要自己清（先撈路徑，DB 刪掉後就找不到了）。
+  const { rows: files } = await query<{ storage_path: string }>(
+    `SELECT a.storage_path
+       FROM agenda_attachments a
+       JOIN agenda_items ai ON ai.id = a.agenda_item_id
+      WHERE ai.meeting_id = $1`,
+    [id],
+  );
   const { rowCount } = await query(`DELETE FROM meetings WHERE id = $1`, [id]);
+  if (rowCount > 0) await removeAttachmentFiles(files.map((f) => f.storage_path));
   return rowCount > 0;
+}
+
+// 盡力刪檔：DB 已經刪成功，檔案刪不掉只留 log，不對使用者報錯。
+export async function removeAttachmentFiles(paths: string[]): Promise<void> {
+  const results = await Promise.allSettled(paths.map((p) => deleteAttachmentFile(p)));
+  for (const [i, r] of results.entries()) {
+    if (r.status === "rejected") console.error(`[attachments] 刪除檔案失敗：${paths[i]}`, r.reason);
+  }
 }
 
 export interface MeetingEditor {

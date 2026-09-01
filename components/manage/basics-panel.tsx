@@ -70,7 +70,7 @@ export function BasicsPanel({ meeting, phase, departments }: { meeting: Meeting;
           />
         ) : null}
         <span className="ml-auto">
-          <DeleteMeetingButton meetingId={meeting.id} title={meeting.title} />
+          <DeleteMeetingButton meetingId={meeting.id} title={meeting.title} afterDelete="home" />
         </span>
       </div>
     </div>

@@ -118,12 +118,14 @@ export async function removeParticipantAction(meetingId: number, email: string):
   return {};
 }
 
+// 不在這裡 redirect：server action 內的 redirect 會讓 client 端的 promise 被 reject，
+// ConfirmActionButton 永遠走不到成功分支；導頁交給 client（navigateTo）。
 export async function deleteMeetingAction(id: number): Promise<FormState> {
   const session = await requireManager();
   const ok = await deleteMeeting(id, session.sub, isAdmin(session));
   if (!ok) return { error: "你沒有權限刪除這份會議記錄" };
   revalidatePath("/");
-  redirect("/");
+  return {};
 }
 
 // 狀態轉移只有三種：發布（draft→published）、結束（→closed）、重新開啟（closed→published）。

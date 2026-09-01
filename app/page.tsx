@@ -1,4 +1,4 @@
-import { isModerator, requireAccess } from "@/lib/auth";
+import { isAdmin, isModerator, requireAccess } from "@/lib/auth";
 import { listMeetings, listMyMeetings } from "@/lib/meetings";
 import { MeetingFilter } from "@/components/meeting-filter";
 import { canStudentCreate } from "@/lib/permissions";
@@ -36,7 +36,13 @@ export default async function HomePage() {
         }
       />
 
-      <MeetingFilter meetings={meetings} departments={departments} canCreate={allowCreate} />
+      <MeetingFilter
+        meetings={meetings}
+        departments={departments}
+        canCreate={allowCreate}
+        currentSub={session.sub}
+        isAdmin={isAdmin(session)}
+      />
     </div>
   );
 }

@@ -2,7 +2,7 @@ import "server-only";
 import type { PoolClient } from "pg";
 import { pool, query } from "@/lib/db";
 import type { Motion, MotionWithCount, VoteStatus } from "@/lib/meetings";
-import { getMeeting, motionCols } from "@/lib/meetings";
+import { getMeeting, motionCols, removeAttachmentFiles } from "@/lib/meetings";
 import { evaluateMotion, motionOutcome, type MotionEvaluation, type MotionOutcome } from "@/lib/threshold";
 
 // 可決門檻的合法值（需求：出席比例 + 同意比例組合）。
@@ -41,7 +41,12 @@ export async function updateAgendaItem(id: number, input: AgendaInput): Promise<
 }
 
 export async function deleteAgendaItem(id: number): Promise<boolean> {
+  const { rows: files } = await query<{ storage_path: string }>(
+    `SELECT storage_path FROM agenda_attachments WHERE agenda_item_id = $1`,
+    [id],
+  );
   const { rowCount } = await query(`DELETE FROM agenda_items WHERE id = $1`, [id]);
+  if (rowCount > 0) await removeAttachmentFiles(files.map((f) => f.storage_path));
   return rowCount > 0;
 }
 
