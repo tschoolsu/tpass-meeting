@@ -35,7 +35,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       phase: derivePhase(detail.meeting.status, detail.meeting.starts_at),
     },
     agenda: detail.agenda,
-    participants: detail.participants.map((p) => ({ email: p.email, grade: p.grade, checked_in: p.checked_in })),
+    participants: detail.participants.map((p) => ({ email: p.email, name: p.name, grade: p.grade, checked_in: p.checked_in })),
     notes: detail.notes,
   });
 }

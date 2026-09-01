@@ -254,15 +254,19 @@ async function getMeetingOfAgenda(agendaItemId: number): Promise<number> {
   return rows[0]?.meeting_id ?? 0;
 }
 
-export async function submitBallot(motionId: number, voterEmail: string, status: VoteStatus): Promise<"ok" | "duplicate" | "not-open"> {
+export async function submitBallot(
+  motionId: number,
+  voter: { email: string; name: string },
+  status: VoteStatus,
+): Promise<"ok" | "duplicate" | "not-open"> {
   const motion = await getMotion(motionId);
   if (!motion) return "not-open";
   if (motion.status !== "open") return "not-open"; // 未開始表決禁止投票（需求）
   const { rowCount } = await query(
-    `INSERT INTO ballots (motion_id, voter_email, vote_status)
-     VALUES ($1, $2, $3)
+    `INSERT INTO ballots (motion_id, voter_email, voter_name, vote_status)
+     VALUES ($1, LOWER($2), $3, $4)
      ON CONFLICT (motion_id, voter_email) DO NOTHING`,
-    [motionId, voterEmail, status],
+    [motionId, voter.email, voter.name.trim(), status],
   );
   return rowCount > 0 ? "ok" : "duplicate";
 }
@@ -299,14 +303,22 @@ export async function getMotionResults(motionId: number): Promise<{
   against: number;
   total: number;
   not_voted: number;
-  ballots: { voter_email: string; vote_status: VoteStatus }[];
+  ballots: { voter_email: string; voter_name: string; vote_status: VoteStatus }[];
 } | null> {
   const motion = await getMotion(motionId);
   if (!motion) return null;
 
   const [bRows, pRows] = await Promise.all([
-    query<{ voter_email: string; vote_status: VoteStatus }>(
-      `SELECT voter_email, vote_status FROM ballots WHERE motion_id = $1 ORDER BY voter_email`,
+    query<{ voter_email: string; voter_name: string; vote_status: VoteStatus }>(
+      `SELECT b.voter_email,
+              COALESCE(NULLIF(b.voter_name, ''), NULLIF(p.name, ''), '') AS voter_name,
+              b.vote_status
+         FROM ballots b
+         JOIN motions m ON m.id = b.motion_id
+         JOIN agenda_items ai ON ai.id = m.agenda_item_id
+         LEFT JOIN participants p ON p.meeting_id = ai.meeting_id AND p.email = b.voter_email
+        WHERE b.motion_id = $1
+        ORDER BY voter_name, b.voter_email`,
       [motionId],
     ),
     query<{ email: string }>(
@@ -342,20 +354,29 @@ export async function getMotionResults(motionId: number): Promise<{
 // 回傳每人（應出席學生）對每個表決案的投票狀態（含未投票）。
 export interface MeetingBallotMatrix {
   meeting_id: number;
-  participants: { email: string; grade: string }[];
-  motions: { id: number; title: string; threshold: string; status: string; position: number }[];
+  participants: { email: string; name: string; grade: string }[];
+  motions: {
+    id: number;
+    title: string;
+    threshold: string;
+    status: string;
+    position: number;
+    agenda_title: string;
+    agenda_position: number;
+  }[];
   votes: Record<string, Record<string, VoteStatus>>; // participantEmail -> motionId -> status
   counts: Record<number, { agree: number; against: number }>;
 }
 
 export async function getMeetingBallots(meetingId: number): Promise<MeetingBallotMatrix | null> {
   const [pRows, mRows, bRows] = await Promise.all([
-    query<{ email: string; grade: string }>(
-      `SELECT email, grade FROM participants WHERE meeting_id = $1 ORDER BY email`,
+    query<{ email: string; name: string; grade: string }>(
+      `SELECT email, name, grade FROM participants WHERE meeting_id = $1 ORDER BY NULLIF(name, ''), email`,
       [meetingId],
     ),
-    query<{ id: number; title: string; threshold: string; status: string; position: number }>(
-      `SELECT m.id, m.title, m.threshold, m.status, m.position
+    query<MeetingBallotMatrix["motions"][number]>(
+      `SELECT m.id, m.title, m.threshold, m.status, m.position,
+              ai.title AS agenda_title, ai.position AS agenda_position
          FROM motions m
          JOIN agenda_items ai ON ai.id = m.agenda_item_id
         WHERE ai.meeting_id = $1

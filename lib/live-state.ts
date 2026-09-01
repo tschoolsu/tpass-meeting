@@ -6,6 +6,7 @@ export type VoteStatus = "agree" | "against";
 
 export interface LiveBallot {
   voter_email: string;
+  voter_name: string;
   vote_status: VoteStatus;
 }
 

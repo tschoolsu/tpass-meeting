@@ -10,6 +10,7 @@ import { addParticipantEmailsAction, removeParticipantAction } from "@/lib/actio
 import { Field } from "@/components/field";
 import { FileInput } from "@/components/file-input";
 import { ConfirmActionButton } from "@/components/confirm-action-button";
+import { displayName } from "@/lib/names";
 
 export function ParticipantsPanel({ meetingId, participants }: { meetingId: number; participants: Participant[] }) {
   return (
@@ -17,9 +18,10 @@ export function ParticipantsPanel({ meetingId, participants }: { meetingId: numb
       <ul className="divide-y-2 divide-dashed divide-foreground/15">
         {participants.map((p) => (
           <li key={p.email} className="flex items-center justify-between gap-3 py-2">
-            <span className="min-w-0 truncate font-mono text-sm font-bold">
-              {p.email}
-              {p.grade ? <span className="ml-2 text-xs text-muted-foreground">[{p.grade}]</span> : null}
+            <span className="min-w-0 truncate text-sm font-bold" title={p.email}>
+              {displayName(p)}
+              {p.name ? <span className="ml-2 font-mono text-xs font-medium text-muted-foreground">{p.email}</span> : null}
+              {p.grade ? <span className="ml-2 font-mono text-xs text-muted-foreground">[{p.grade}]</span> : null}
             </span>
             <span className="flex shrink-0 items-center gap-2">
               {p.checked_in ? <Badge className="bg-tone-green-badge">已簽到</Badge> : <Badge>未簽到</Badge>}
@@ -29,7 +31,7 @@ export function ParticipantsPanel({ meetingId, participants }: { meetingId: numb
                 label="移除"
                 action={() => removeParticipantAction(meetingId, p.email)}
                 confirm={{
-                  title: `確定要把 ${p.email} 移出名單嗎？`,
+                  title: `確定要把 ${displayName(p)} 移出名單嗎？`,
                   description: "只移除名單；他已投的票不受影響。之後可以再加回來。",
                   confirmLabel: "移除",
                 }}

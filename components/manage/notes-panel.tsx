@@ -9,6 +9,7 @@ import type { MeetingEditor, MeetingNote } from "@/lib/meetings";
 import { addNoteEditorAction } from "@/lib/actions";
 import { formatTaipei } from "@/lib/time";
 import { NoteBar } from "@/components/note-bar";
+import { displayName } from "@/lib/names";
 
 export function NotesPanel({ meetingId, notes, editors }: { meetingId: number; notes: MeetingNote[]; editors: MeetingEditor[] }) {
   return (
@@ -59,7 +60,7 @@ function EditorsBlock({ meetingId, editors }: { meetingId: number; editors: Meet
       <p className="mt-0.5 text-xs font-medium text-muted-foreground">被授權的人可以在會議頁寫紀錄、在簽到台代簽到。目前無法撤銷，請謹慎授權。</p>
       <ul className="mt-2 flex flex-wrap gap-2">
         {editors.map((ed) => (
-          <Badge key={ed.email}>{ed.email}</Badge>
+          <Badge key={ed.email} title={ed.email}>{displayName(ed)}</Badge>
         ))}
         {editors.length === 0 ? <li className="text-sm font-medium text-muted-foreground">尚未授權任何人。</li> : null}
       </ul>

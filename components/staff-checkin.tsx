@@ -4,13 +4,14 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { staffCheckInAction } from "@/lib/actions";
 import { Badge, Button, Card } from "tpass-ui";
+import { displayName } from "@/lib/names";
 
 export function StaffCheckin({
   meetingId,
   participants,
 }: {
   meetingId: number;
-  participants: { email: string; grade: string; checked_in: boolean }[];
+  participants: { email: string; name: string; grade: string; checked_in: boolean }[];
 }) {
   const router = useRouter();
   const [grade, setGrade] = useState<string>("");
@@ -57,9 +58,9 @@ export function StaffCheckin({
       <ul className="mt-4 divide-y-2 divide-dashed divide-foreground/15">
         {filtered.map((p) => (
           <li key={p.email} className="flex items-center justify-between gap-3 py-2.5">
-            <span className="font-mono text-sm font-bold">
-              {p.email}
-              {p.grade ? <span className="ml-1.5 text-xs font-bold text-muted-foreground">[{p.grade}]</span> : null}
+            <span className="min-w-0 truncate text-sm font-bold" title={p.email}>
+              {displayName(p)}
+              {p.grade ? <span className="ml-1.5 font-mono text-xs font-bold text-muted-foreground">[{p.grade}]</span> : null}
             </span>
             {p.checked_in ? (
               <Badge className="bg-tone-green-badge">已簽到</Badge>

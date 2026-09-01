@@ -76,6 +76,7 @@ export default async function CheckinPage({
             meetingId={id}
             participants={detail.participants.map((p) => ({
               email: p.email,
+              name: p.name,
               grade: p.grade,
               checked_in: p.checked_in,
             }))}

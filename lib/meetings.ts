@@ -28,6 +28,8 @@ export interface MeetingListItem extends Meeting {
 export interface Participant {
   id: number;
   email: string;
+  /** 對方登入簽到／投票後才有；沒有就用 displayName 退回 email。 */
+  name: string;
   grade: string;
   checked_in: boolean;
   checked_in_at: string | null;
@@ -95,7 +97,7 @@ export interface MeetingDetail {
 const meetingCols =
   "m.id, m.title, m.department, m.meeting_date::text AS meeting_date, m.starts_at, m.owner_sub, m.owner_email, m.owner_name, m.voting_enabled, m.location, m.online_link, m.description, m.status, m.current_agenda_item_id, m.created_at";
 
-const participantCols = "p.id, p.meeting_id, p.email, p.grade, p.checked_in, p.checked_in_at";
+const participantCols = "p.id, p.meeting_id, p.email, p.name, p.grade, p.checked_in, p.checked_in_at";
 
 export async function listMeetings(): Promise<MeetingListItem[]> {
   const { rows } = await query<MeetingListItem>(`
@@ -276,6 +278,25 @@ export async function setCheckIn(meetingId: number, email: string): Promise<"ok"
   return invited ? "already" : "not-invited";
 }
 
+// 名字回填：邀請時只知道 email，對方用 Google 登入來簽到／投票時把 JWT 的 name 寫回去。
+export async function rememberParticipantName(meetingId: number, email: string, name: string): Promise<void> {
+  const n = name.trim();
+  if (!n) return;
+  await query(
+    `UPDATE participants SET name = $3 WHERE meeting_id = $1 AND email = LOWER($2) AND name <> $3`,
+    [meetingId, email, n],
+  );
+}
+
+export async function rememberEditorName(meetingId: number, email: string, name: string): Promise<void> {
+  const n = name.trim();
+  if (!n) return;
+  await query(
+    `UPDATE meeting_editors SET name = $3 WHERE meeting_id = $1 AND email = LOWER($2) AND name <> $3`,
+    [meetingId, email, n],
+  );
+}
+
 export async function addNote(
   meetingId: number,
   author: { sub?: string; email: string; name: string },
@@ -420,13 +441,14 @@ export async function deleteMeeting(id: number, ownerSub: string, isAdmin: boole
 
 export interface MeetingEditor {
   email: string;
+  name: string;
   granted_by: string;
 }
 
 // 該會議的協作者名單（工作台 ④ 顯示用）。
 export async function listMeetingEditors(meetingId: number): Promise<MeetingEditor[]> {
   const { rows } = await query<MeetingEditor>(
-    `SELECT email, granted_by FROM meeting_editors WHERE meeting_id = $1 ORDER BY email`,
+    `SELECT email, name, granted_by FROM meeting_editors WHERE meeting_id = $1 ORDER BY email`,
     [meetingId],
   );
   return rows;

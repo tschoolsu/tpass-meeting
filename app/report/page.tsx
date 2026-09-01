@@ -79,18 +79,19 @@ export default async function ReportPage({
       <p className="meta"><b>應到：</b>{participants.length} 人　<b>已簽到：</b>{checkedCount} 人</p>
       <table>
         <thead>
-          <tr><th style={{ width: "22%" }}>信箱</th><th style={{ width: "12%" }}>年級</th><th>狀態</th></tr>
+          <tr><th style={{ width: "18%" }}>姓名</th><th style={{ width: "26%" }}>信箱</th><th style={{ width: "10%" }}>年級</th><th>狀態</th></tr>
         </thead>
         <tbody>
           {participants.map((p) => (
             <tr key={p.email}>
+              <td>{p.name || "—"}</td>
               <td>{p.email}</td>
               <td>{p.grade || "—"}</td>
               <td>{p.checked_in ? "已簽到" : "未簽到"}</td>
             </tr>
           ))}
           {participants.length === 0 ? (
-            <tr><td colSpan={3} className="empty">本次無與會者名單。</td></tr>
+            <tr><td colSpan={4} className="empty">本次無與會者名單。</td></tr>
           ) : null}
         </tbody>
       </table>
@@ -115,21 +116,23 @@ export default async function ReportPage({
                   <table>
                     <thead>
                       <tr>
-                        <th style={{ width: "30%" }}>信箱</th>
-                        <th style={{ width: "12%" }}>年級</th>
+                        <th style={{ width: "18%" }}>姓名</th>
+                        <th style={{ width: "26%" }}>信箱</th>
+                        <th style={{ width: "10%" }}>年級</th>
                         <th>意見</th>
                       </tr>
                     </thead>
                     <tbody>
                       {participants.map((p) => (
                         <tr key={`${m.id}-${p.email}`}>
+                          <td>{p.name || "—"}</td>
                           <td>{p.email}</td>
                           <td>{p.grade || "—"}</td>
                           <td>{ballotOf(m.id, p.email)}</td>
                         </tr>
                       ))}
                       {participants.length === 0 ? (
-                        <tr><td colSpan={3} className="empty">無與會者。</td></tr>
+                        <tr><td colSpan={4} className="empty">無與會者。</td></tr>
                       ) : null}
                     </tbody>
                   </table>

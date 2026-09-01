@@ -8,6 +8,7 @@ import { formatTaipei } from "@/lib/time";
 import { hasBgm } from "@/lib/bgm";
 import { authConfig } from "@/config/auth";
 import { thLabel } from "@/lib/threshold";
+import { displayName } from "@/lib/names";
 import { derivePhase, motionLabel, primaryCtaFor, PUBLIC_PHASE_META } from "@/lib/meeting-status";
 import { NoteBar } from "@/components/note-bar";
 import { BgmPlayer } from "@/components/bgm-player";
@@ -184,9 +185,9 @@ export default async function ReadPage({
             <ul className="mt-3 divide-y-2 divide-dashed divide-foreground/15">
               {participants.map((p) => (
                 <li key={p.email} className="flex items-center justify-between gap-3 py-2">
-                  <span className="min-w-0 truncate font-mono text-sm font-bold">
-                    {p.email}
-                    {p.grade ? <span className="ml-2 text-xs font-bold text-muted-foreground">[{p.grade}]</span> : null}
+                  <span className="min-w-0 truncate text-sm font-bold" title={p.email}>
+                    {displayName(p)}
+                    {p.grade ? <span className="ml-2 font-mono text-xs font-bold text-muted-foreground">[{p.grade}]</span> : null}
                   </span>
                   {p.checked_in ? <Badge className="bg-tone-green-badge">已簽到</Badge> : <Badge>未簽到</Badge>}
                 </li>

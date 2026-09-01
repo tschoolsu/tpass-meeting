@@ -5,6 +5,7 @@ import { getMeetingBallots } from "@/lib/agenda";
 import { Badge, Card } from "tpass-ui";
 import { LinkButton } from "@/components/link-button";
 import { MeetingLive } from "@/components/meeting-live";
+import { displayName } from "@/lib/names";
 
 export const dynamic = "force-dynamic";
 
@@ -97,9 +98,9 @@ export default async function BallotsPage({
             <tbody>
               {participants.map((p) => (
                 <tr key={p.email} className="border-b border-dashed border-foreground/20">
-                  <td className="px-3 py-2 font-mono text-xs font-bold">
-                    {p.email}
-                    {p.grade ? <span className="ml-1.5 text-[10px] font-bold text-muted-foreground">{p.grade}</span> : null}
+                  <td className="px-3 py-2 text-xs font-bold" title={p.email}>
+                    {displayName(p)}
+                    {p.grade ? <span className="ml-1.5 font-mono text-[10px] font-bold text-muted-foreground">{p.grade}</span> : null}
                   </td>
                   {matrix.motions.map((m) => {
                     const status = matrix.votes[p.email]?.[String(m.id)] ?? "";

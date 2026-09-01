@@ -23,6 +23,8 @@ import {
   getMeeting,
   getMeetingDetail,
   isParticipant,
+  rememberEditorName,
+  rememberParticipantName,
   removeParticipant,
   setCheckIn,
   updateMeeting,
@@ -165,6 +167,7 @@ export async function checkInAction(meetingId: number): Promise<FormState & { do
   if (!invited) return { error: "你未被邀請參與這場會議" };
   const status = await setCheckIn(meetingId, session.email);
   if (status === "not-invited") return { error: "你未被邀請參與這場會議" };
+  await rememberParticipantName(meetingId, session.email, session.name);
   await notifyMeetingChanged(meetingId, "checkin");
   revalidatePath(`/read?id=${meetingId}`);
   revalidatePath(`/checkin?id=${meetingId}`);
@@ -330,9 +333,10 @@ export async function voteAction(
   if (!(await isParticipant(meetingId, session.email))) {
     return { error: "你未被邀請參與這場會議的表決" };
   }
-  const result = await submitBallot(motionId, session.email, status);
+  const result = await submitBallot(motionId, { email: session.email, name: session.name }, status);
   if (result === "not-open") return { error: "表決尚未開放，或已經結束" };
   if (result === "duplicate") return { error: "你已經完成這項表決，無法更改" };
+  await rememberParticipantName(meetingId, session.email, session.name);
   await notifyMeetingChanged(meetingId, "ballot");
   revalidatePath(`/read?id=${meetingId}`);
   revalidatePath(`/display?id=${meetingId}`);
@@ -426,6 +430,7 @@ export async function staffCheckInAction(meetingId: number, email: string): Prom
   if (!(await isParticipant(meetingId, email))) return { error: "此人未被邀請" };
   const status = await setCheckIn(meetingId, email);
   if (status === "not-invited") return { error: "此人未被邀請" };
+  await rememberEditorName(meetingId, session.email, session.name);
   await notifyMeetingChanged(meetingId, "checkin");
   revalidatePath(`/checkin?id=${meetingId}`);
   return {};
@@ -444,6 +449,7 @@ export async function noteAction(meetingId: number, body: string): Promise<FormS
   if (!canNote) return { error: "你沒有權限新增紀錄（僅會議創建者與被授權成員可操作）" };
 
   await addNote(meetingId, { sub: session.sub, email: session.email, name: session.name }, text);
+  await rememberEditorName(meetingId, session.email, session.name);
   revalidatePath(`/read?id=${meetingId}`);
   return {};
 }

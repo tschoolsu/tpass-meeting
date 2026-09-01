@@ -5,6 +5,7 @@ import { ValidationError } from "@/lib/validation";
 
 interface BackupParticipant {
   email: string;
+  name?: string;
   grade: string;
   checked_in: boolean;
   checked_in_at: string | null;
@@ -19,6 +20,7 @@ interface BackupAttachment {
 
 interface BackupBallot {
   voter_email: string;
+  voter_name?: string;
   vote_status: string;
   created_at: string;
 }
@@ -77,8 +79,8 @@ export async function exportAll(): Promise<BackupData> {
               owner_sub, owner_email, owner_name, location, online_link, description, status
          FROM meetings ORDER BY id`,
     ),
-    query<{ meeting_id: number; email: string; grade: string; checked_in: boolean; checked_in_at: Date | null }>(
-      `SELECT meeting_id, email, grade, checked_in, checked_in_at FROM participants ORDER BY id`,
+    query<{ meeting_id: number; email: string; name: string; grade: string; checked_in: boolean; checked_in_at: Date | null }>(
+      `SELECT meeting_id, email, name, grade, checked_in, checked_in_at FROM participants ORDER BY id`,
     ),
     query<{ id: number; meeting_id: number; position: number; title: string; description: string }>(
       `SELECT id, meeting_id, position, title, description FROM agenda_items ORDER BY id`,
@@ -89,8 +91,8 @@ export async function exportAll(): Promise<BackupData> {
     query<{ agenda_item_id: number; filename: string; mime: string; size: number; storage_path: string }>(
       `SELECT agenda_item_id, filename, mime, size, storage_path FROM agenda_attachments ORDER BY id`,
     ),
-    query<{ motion_id: number; voter_email: string; vote_status: string; created_at: Date }>(
-      `SELECT motion_id, voter_email, vote_status, created_at FROM ballots ORDER BY id`,
+    query<{ motion_id: number; voter_email: string; voter_name: string; vote_status: string; created_at: Date }>(
+      `SELECT motion_id, voter_email, voter_name, vote_status, created_at FROM ballots ORDER BY id`,
     ),
     query<{ meeting_id: number; author_email: string; author_name: string; body: string; created_at: Date }>(
       `SELECT meeting_id, author_email, author_name, body, created_at FROM meeting_notes ORDER BY id`,
@@ -100,7 +102,7 @@ export async function exportAll(): Promise<BackupData> {
   const participantsByMeeting = new Map<number, BackupParticipant[]>();
   for (const p of pRows.rows) {
     const list = participantsByMeeting.get(p.meeting_id) ?? [];
-    list.push({ email: p.email, grade: p.grade, checked_in: p.checked_in, checked_in_at: p.checked_in_at ? iso(p.checked_in_at) : null });
+    list.push({ email: p.email, name: p.name, grade: p.grade, checked_in: p.checked_in, checked_in_at: p.checked_in_at ? iso(p.checked_in_at) : null });
     participantsByMeeting.set(p.meeting_id, list);
   }
 
@@ -118,7 +120,7 @@ export async function exportAll(): Promise<BackupData> {
     if (!key) continue;
     const list = motionsByAgenda.get(key.agenda_item_id);
     const mot = list?.find((x) => x.position === key.position);
-    mot?.ballots.push({ voter_email: b.voter_email, vote_status: b.vote_status, created_at: iso(b.created_at) });
+    mot?.ballots.push({ voter_email: b.voter_email, voter_name: b.voter_name, vote_status: b.vote_status, created_at: iso(b.created_at) });
   }
 
   const attachmentsByAgenda = new Map<number, BackupAttachment[]>();
@@ -212,9 +214,9 @@ export async function importAll(data: unknown): Promise<number> {
 
       for (const p of m.participants ?? []) {
         await client.query(
-          `INSERT INTO participants (meeting_id, email, grade, checked_in, checked_in_at)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [meetingId, requireString(p.email, "participant.email"), p.grade ?? "",
+          `INSERT INTO participants (meeting_id, email, name, grade, checked_in, checked_in_at)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [meetingId, requireString(p.email, "participant.email"), p.name ?? "", p.grade ?? "",
            p.checked_in === true, p.checked_in_at ? new Date(p.checked_in_at).toISOString() : null],
         );
       }
@@ -246,8 +248,8 @@ export async function importAll(data: unknown): Promise<number> {
           const motionId = motion.rows[0].id;
           for (const b of mo.ballots ?? []) {
             await client.query(
-              `INSERT INTO ballots (motion_id, voter_email, vote_status, created_at) VALUES ($1, $2, $3, $4)`,
-              [motionId, requireString(b.voter_email, "ballot.voter_email"),
+              `INSERT INTO ballots (motion_id, voter_email, voter_name, vote_status, created_at) VALUES ($1, $2, $3, $4, $5)`,
+              [motionId, requireString(b.voter_email, "ballot.voter_email"), b.voter_name ?? "",
                b.vote_status === "against" || b.vote_status === "abstain" ? b.vote_status : "agree",
                new Date(b.created_at).toISOString()],
             );

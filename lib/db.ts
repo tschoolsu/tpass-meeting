@@ -68,6 +68,8 @@ async function createSchema(): Promise<void> {
     );
     -- 年級標籤（需求：簽到／簽退／具名紀錄的年級篩選）
     ALTER TABLE participants ADD COLUMN IF NOT EXISTS grade TEXT NOT NULL DEFAULT '';
+    -- 名字：邀請時只有 email，對方簽到／投票時用 JWT 的 name 回填
+    ALTER TABLE participants ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT '';
     CREATE INDEX IF NOT EXISTS idx_participants_meeting ON participants (meeting_id);
 
     -- 議程項目（需求：長文說明／可動態修正）
@@ -119,6 +121,7 @@ async function createSchema(): Promise<void> {
       UNIQUE (motion_id, voter_email)
     );
     CREATE INDEX IF NOT EXISTS idx_ballots_motion ON ballots (motion_id);
+    ALTER TABLE ballots ADD COLUMN IF NOT EXISTS voter_name TEXT NOT NULL DEFAULT '';
 
     CREATE TABLE IF NOT EXISTS meeting_notes (
       id           SERIAL PRIMARY KEY,
@@ -142,6 +145,7 @@ async function createSchema(): Promise<void> {
       UNIQUE (meeting_id, email)
     );
     CREATE INDEX IF NOT EXISTS idx_meeting_editors_meeting ON meeting_editors (meeting_id, email);
+    ALTER TABLE meeting_editors ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT '';
 
     -- Email 通知佇列（需求：自動寄送會議通知；支援失敗重試）
     CREATE TABLE IF NOT EXISTS notification_queue (

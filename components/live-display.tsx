@@ -2,6 +2,7 @@
 
 import { useLiveState } from "@/components/live-polling";
 import { motionLabel } from "@/lib/meeting-status";
+import { displayName } from "@/lib/names";
 
 export function LiveDisplay({ meetingId }: { meetingId: number }) {
   const { data, error } = useLiveState(meetingId);
@@ -88,7 +89,9 @@ export function LiveDisplay({ meetingId }: { meetingId: number }) {
                                   key={b.voter_email}
                                   className="flex items-center justify-between rounded-lg border-2 border-foreground bg-tone-green-bg px-3 py-1.5"
                                 >
-                                  <span className="truncate text-lg font-bold">{b.voter_email}</span>
+                                  <span className="truncate text-lg font-bold" title={b.voter_email}>
+                                    {displayName({ name: b.voter_name, email: b.voter_email })}
+                                  </span>
                                   <span className="font-mono text-lg font-extrabold text-tone-green-text">
                                     {zh[b.vote_status] ?? b.vote_status}
                                   </span>
