@@ -2,6 +2,8 @@
 // 無 "use client"、無 server-only：API route、client hook、node:test 三方共用。
 // 快照是唯一事實來源；SSE 只是「請立刻重抓」的鈴聲（見 components/live-polling.ts）。
 
+import type { MotionResult } from "./threshold";
+
 export type VoteStatus = "agree" | "against";
 
 export interface LiveBallot {
@@ -18,6 +20,9 @@ export interface LiveMotion {
   status: string; // '' | 'open' | 'closed'
   agree: number;
   against: number;
+  present_count: number | null;
+  expected_count: number | null;
+  result: MotionResult | null;
   /** 只有 current 議程底下已結算的案才附（投屏「各人意見」用）。 */
   ballots?: LiveBallot[];
 }

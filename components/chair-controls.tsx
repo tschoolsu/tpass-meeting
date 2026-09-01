@@ -10,19 +10,26 @@ import {
 } from "@/lib/actions";
 import { Badge, Button, Card } from "tpass-ui";
 import { motionLabel } from "@/lib/meeting-status";
+import { MotionOutcomeLine } from "@/components/motion-outcome";
+import type { OutcomeSource } from "@/lib/threshold";
 
 export function ChairControls({
   meetingId,
   agenda,
   currentId,
+  present,
+  expected,
 }: {
   meetingId: number;
   agenda: {
     id: number;
     title: string;
-    motions: { id: number; title: string; status: string }[];
+    motions: ({ id: number; title: string } & OutcomeSource)[];
   }[];
   currentId: number | null;
+  /** 即時出席數，給進行中的案算「目前是否達門檻」。 */
+  present: number;
+  expected: number;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState<{ type: string; id: number } | null>(null);
@@ -106,7 +113,7 @@ export function ChairControls({
                     return (
                       <li
                         key={m.id}
-                        className="flex items-center justify-between gap-3 rounded-lg border-2 border-foreground bg-tone-green-bg px-3 py-1.5"
+                        className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border-2 border-foreground bg-tone-green-bg px-3 py-1.5"
                       >
                         <span className="text-sm font-bold">{m.title}</span>
                         <span className="flex items-center gap-2">
@@ -133,6 +140,11 @@ export function ChairControls({
                             </Button>
                           )}
                         </span>
+                        {m.status !== "" ? (
+                          <span className="basis-full">
+                            <MotionOutcomeLine motion={m} live={{ present, expected }} />
+                          </span>
+                        ) : null}
                       </li>
                     );
                   })}

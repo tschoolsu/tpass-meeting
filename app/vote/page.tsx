@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireAccess } from "@/lib/auth";
-import { isParticipant } from "@/lib/meetings";
+import { getCheckInState, isParticipant } from "@/lib/meetings";
 import { getMotion, getMotionFlow } from "@/lib/agenda";
 import { formatTaipei, isStarted } from "@/lib/time";
 import { MotionVote } from "@/components/motion-vote";
@@ -70,6 +70,7 @@ export default async function VotePage({
         motionId={motionId}
         initialStatus={flow.motion.status}
         initialAnswered={flow.answered}
+        initialCheckedIn={await getCheckInState(meeting.id, session.email)}
       />
     </div>
   );

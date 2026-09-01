@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { getMeetingDetail } from "@/lib/meetings";
+import { getMeetingDetail, type MotionWithCount } from "@/lib/meetings";
 import { getMotionResults, listMyVotedMotionIds } from "@/lib/agenda";
 import { derivePhase } from "@/lib/meeting-status";
-import type { LiveState } from "@/lib/live-state";
+import type { LiveMotion, LiveState } from "@/lib/live-state";
 
 // GET /api/live/meeting/:id —— 即時快照，唯一事實來源（投屏、彈窗、自動 refresh 都吃這份）。
 // 需登入；參與人與管理者皆可讀取。回傳形狀＝ lib/live-state.ts 的 LiveState。
@@ -68,7 +68,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   return NextResponse.json(body);
 }
 
-function toLive(m: { id: number; agenda_item_id: number; title: string; threshold: string; status: string; agree: number; against: number }) {
+function toLive(m: MotionWithCount): LiveMotion {
   return {
     id: m.id,
     agenda_item_id: m.agenda_item_id,
@@ -77,5 +77,8 @@ function toLive(m: { id: number; agenda_item_id: number; title: string; threshol
     status: m.status,
     agree: m.agree,
     against: m.against,
+    present_count: m.present_count,
+    expected_count: m.expected_count,
+    result: m.result,
   };
 }

@@ -28,7 +28,7 @@ export default async function ChairPage({
   const detail = await getMeetingDetail(id);
   if (!detail) notFound();
 
-  const { meeting, agenda } = detail;
+  const { meeting, agenda, participants } = detail;
   if (!(isAdmin(session) || meeting.owner_sub === session.sub)) {
     return <Forbidden message="只有這場會議的建立者或管理員可以使用主席控制台。" />;
   }
@@ -67,10 +67,22 @@ export default async function ChairPage({
         <ChairControls
           meetingId={id}
           currentId={detail.current?.id ?? null}
+          present={participants.filter((p) => p.checked_in).length}
+          expected={participants.length}
           agenda={agenda.map((a) => ({
             id: a.id,
             title: a.title,
-            motions: a.motions.map((m) => ({ id: m.id, title: m.title, status: m.status })),
+            motions: a.motions.map((m) => ({
+              id: m.id,
+              title: m.title,
+              status: m.status,
+              threshold: m.threshold,
+              agree: m.agree,
+              against: m.against,
+              present_count: m.present_count,
+              expected_count: m.expected_count,
+              result: m.result,
+            })),
           }))}
         />
       </div>

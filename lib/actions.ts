@@ -21,6 +21,7 @@ import {
   createMeeting,
   deleteMeeting,
   getMeeting,
+  getCheckInState,
   getMeetingDetail,
   isParticipant,
   rememberEditorName,
@@ -274,7 +275,9 @@ export async function startVoteAction(motionId: number, meetingId: number): Prom
   if (!ok) return { error: "你沒有權限控制這份會議" };
   const meeting = await getMeeting(meetingId);
   if (meeting?.status === "closed") return { error: "會議已結束，無法開放表決" };
-  await startVote(motionId);
+  const r = await startVote(motionId);
+  if (r === "not-found") return { error: "找不到這個表決案" };
+  if (r === "already-closed") return { error: "此案已結算，無法重新開放" };
   await notifyMeetingChanged(meetingId, "vote-started");
   revalidatePath(`/read?id=${meetingId}`);
   revalidatePath(`/chair?id=${meetingId}`);
@@ -286,7 +289,7 @@ export async function stopVoteAction(motionId: number, meetingId: number): Promi
   const session = await requireManager();
   const ok = await canEditMeeting(meetingId, session);
   if (!ok) return { error: "你沒有權限控制這份會議" };
-  await stopVote(motionId);
+  if (!(await stopVote(motionId))) return { error: "這個表決案不在進行中" };
   await notifyMeetingChanged(meetingId, "vote-closed");
   revalidatePath(`/read?id=${meetingId}`);
   revalidatePath(`/chair?id=${meetingId}`);
@@ -333,6 +336,8 @@ export async function voteAction(
   if (!(await isParticipant(meetingId, session.email))) {
     return { error: "你未被邀請參與這場會議的表決" };
   }
+  // 門檻分母是「已簽到人數」，沒簽到的人投了會讓同意票多過出席數。
+  if (!(await getCheckInState(meetingId, session.email))) return { error: "請先完成簽到再表決" };
   const result = await submitBallot(motionId, { email: session.email, name: session.name }, status);
   if (result === "not-open") return { error: "表決尚未開放，或已經結束" };
   if (result === "duplicate") return { error: "你已經完成這項表決，無法更改" };

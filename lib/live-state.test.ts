@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { liveSignature, pendingMotionsFor, type LiveState } from "./live-state.ts";
 
+const unsettled = { present_count: null, expected_count: null, result: null };
+
 function state(over: Partial<LiveState> = {}): LiveState {
   return {
     meeting: { id: 1, title: "m", status: "published", phase: "live", starts_at: "2026-09-01T02:00:00.000Z" },
@@ -15,8 +17,8 @@ function state(over: Partial<LiveState> = {}): LiveState {
         title: "第一案",
         description: "",
         motions: [
-          { id: 100, agenda_item_id: 10, title: "a", threshold: "1/2+1/2", status: "closed", agree: 1, against: 0 },
-          { id: 101, agenda_item_id: 10, title: "b", threshold: "1/2+1/2", status: "open", agree: 0, against: 0 },
+          { id: 100, agenda_item_id: 10, title: "a", threshold: "1/2+1/2", status: "closed", agree: 1, against: 0, ...unsettled },
+          { id: 101, agenda_item_id: 10, title: "b", threshold: "1/2+1/2", status: "open", agree: 0, against: 0, ...unsettled },
         ],
       },
       {
@@ -24,7 +26,7 @@ function state(over: Partial<LiveState> = {}): LiveState {
         position: 1,
         title: "第二案",
         description: "",
-        motions: [{ id: 110, agenda_item_id: 11, title: "c", threshold: "3/4", status: "open", agree: 0, against: 0 }],
+        motions: [{ id: 110, agenda_item_id: 11, title: "c", threshold: "3/4", status: "open", agree: 0, against: 0, ...unsettled }],
       },
     ],
     me: { participant: true, checked_in: true, voted_motion_ids: [] },

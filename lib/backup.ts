@@ -31,6 +31,11 @@ interface BackupMotion {
   threshold: string;
   status: string;
   position: number;
+  opened_at?: string | null;
+  closed_at?: string | null;
+  present_count?: number | null;
+  expected_count?: number | null;
+  result?: string | null;
   ballots: BackupBallot[];
 }
 
@@ -85,8 +90,13 @@ export async function exportAll(): Promise<BackupData> {
     query<{ id: number; meeting_id: number; position: number; title: string; description: string }>(
       `SELECT id, meeting_id, position, title, description FROM agenda_items ORDER BY id`,
     ),
-    query<{ id: number; agenda_item_id: number; position: number; title: string; description: string; threshold: string; status: string }>(
-      `SELECT id, agenda_item_id, position, title, description, threshold, status FROM motions ORDER BY id`,
+    query<{
+      id: number; agenda_item_id: number; position: number; title: string; description: string; threshold: string; status: string;
+      opened_at: Date | null; closed_at: Date | null; present_count: number | null; expected_count: number | null; result: string | null;
+    }>(
+      `SELECT id, agenda_item_id, position, title, description, threshold, status,
+              opened_at, closed_at, present_count, expected_count, result
+         FROM motions ORDER BY id`,
     ),
     query<{ agenda_item_id: number; filename: string; mime: string; size: number; storage_path: string }>(
       `SELECT agenda_item_id, filename, mime, size, storage_path FROM agenda_attachments ORDER BY id`,
@@ -109,7 +119,13 @@ export async function exportAll(): Promise<BackupData> {
   const motionsByAgenda = new Map<number, BackupMotion[]>();
   for (const m2 of mRows2.rows) {
     const list = motionsByAgenda.get(m2.agenda_item_id) ?? [];
-    list.push({ title: m2.title, description: m2.description, threshold: m2.threshold, status: m2.status, position: m2.position, ballots: [] });
+    list.push({
+      title: m2.title, description: m2.description, threshold: m2.threshold, status: m2.status, position: m2.position,
+      opened_at: m2.opened_at ? iso(m2.opened_at) : null,
+      closed_at: m2.closed_at ? iso(m2.closed_at) : null,
+      present_count: m2.present_count, expected_count: m2.expected_count, result: m2.result,
+      ballots: [],
+    });
     motionsByAgenda.set(m2.agenda_item_id, list);
   }
   const motionIdToKey = new Map<number, { agenda_item_id: number; position: number }>();
@@ -240,10 +256,15 @@ export async function importAll(data: unknown): Promise<number> {
 
         for (const mo of ai.motions ?? []) {
           const motion = await client.query<{ id: number }>(
-            `INSERT INTO motions (agenda_item_id, title, description, threshold, status, position)
-             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+            `INSERT INTO motions (agenda_item_id, title, description, threshold, status, position,
+                                  opened_at, closed_at, present_count, expected_count, result)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
             [agendaId, requireString(mo.title, "motion.title"), mo.description ?? "",
-             mo.threshold ?? "1/2+1/2", mo.status ?? "", Number(mo.position) || 0],
+             mo.threshold ?? "1/2+1/2", mo.status ?? "", Number(mo.position) || 0,
+             mo.opened_at ? new Date(mo.opened_at).toISOString() : null,
+             mo.closed_at ? new Date(mo.closed_at).toISOString() : null,
+             mo.present_count ?? null, mo.expected_count ?? null,
+             mo.result === "passed" || mo.result === "rejected" || mo.result === "no_quorum" ? mo.result : null],
           );
           const motionId = motion.rows[0].id;
           for (const b of mo.ballots ?? []) {

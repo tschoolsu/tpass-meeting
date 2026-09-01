@@ -5,24 +5,21 @@ import { voteAction } from "@/lib/actions";
 import { useLiveState, type LiveMotion } from "@/components/live-polling";
 import { Badge, Card } from "tpass-ui";
 import { LinkButton } from "@/components/link-button";
-
-const THRESHOLD_LABEL: Record<string, string> = {
-  "1/2+1/2": "出席 1/2＋簡單多數",
-  "2/3+1/2": "出席 2/3＋簡單多數",
-  "2/3+2/3": "出席 2/3＋同意 2/3",
-  "3/4": "同意 3/4",
-};
+import { thLabel } from "@/lib/threshold";
+import { MotionOutcomeLine } from "@/components/motion-outcome";
 
 export function MotionVote({
   meetingId,
   motionId,
   initialStatus,
   initialAnswered,
+  initialCheckedIn,
 }: {
   meetingId: number;
   motionId: number;
   initialStatus: string;
   initialAnswered: "agree" | "against" | null;
+  initialCheckedIn: boolean;
 }) {
   const { data } = useLiveState(meetingId);
   const [answered, setAnswered] = useState<"agree" | "against" | null>(initialAnswered);
@@ -34,6 +31,7 @@ export function MotionVote({
     .flatMap((a) => a.motions)
     .find((m) => m.id === motionId) ?? null;
   const isOpen = motion ? motion.status === "open" : initialStatus === "open";
+  const checkedIn = data?.me.checked_in ?? initialCheckedIn;
   const answeredValue = answered;
 
   async function cast(status: "agree" | "against") {
@@ -52,12 +50,23 @@ export function MotionVote({
   return (
     <Card className="mx-auto max-w-2xl text-center">
       <Badge className="bg-tone-green-badge">表決案</Badge>
-      <Badge className="ml-2 bg-accent/10">
-        {THRESHOLD_LABEL[motion?.threshold ?? "1/2+1/2"] ?? "自訂門檻"}
-      </Badge>
+      <Badge className="ml-2 bg-accent/10">{thLabel(motion?.threshold ?? "1/2+1/2")}</Badge>
       <h1 className="mt-4 text-2xl font-extrabold leading-snug">{motion?.title ?? "表決"}</h1>
+      {motion && data && motion.status !== "" ? (
+        <div className="mt-3 flex justify-center">
+          <MotionOutcomeLine motion={motion} live={{ present: data.checked_in, expected: data.total }} />
+        </div>
+      ) : null}
 
-      {!isOpen ? (
+      {isOpen && !answeredValue && !checkedIn ? (
+        <div className="mt-6 rounded-xl border-2 border-foreground bg-secondary px-4 py-4">
+          <p className="text-sm font-bold">請先完成簽到再表決</p>
+          <p className="mt-1 text-xs font-medium text-muted-foreground">門檻以已簽到人數計算，沒簽到的票不算數。</p>
+          <LinkButton href={`/checkin?id=${meetingId}`} variant="primary" className="mt-3">
+            前往簽到
+          </LinkButton>
+        </div>
+      ) : !isOpen ? (
         <p className="mt-6 rounded-xl border-2 border-foreground bg-secondary px-4 py-3 text-sm font-bold text-muted-foreground">
           {answeredValue
             ? "你已完成這項表決"

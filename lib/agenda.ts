@@ -1,7 +1,9 @@
 import "server-only";
+import type { PoolClient } from "pg";
 import { pool, query } from "@/lib/db";
 import type { Motion, MotionWithCount, VoteStatus } from "@/lib/meetings";
-import { getMeeting } from "@/lib/meetings";
+import { getMeeting, motionCols } from "@/lib/meetings";
+import { evaluateMotion, motionOutcome, type MotionEvaluation, type MotionOutcome } from "@/lib/threshold";
 
 // 可決門檻的合法值（需求：出席比例 + 同意比例組合）。
 export const THRESHOLDS = [
@@ -147,21 +149,64 @@ export async function nextAgendaItem(meetingId: number): Promise<boolean> {
   return true;
 }
 
-// 開啟表決：把該 motion 設為 open，並把同議程「正在進行中」的其他 motion 關閉。
-// 只關 open 的——以前連尚未開放（''）的也一起打成 closed，第二案就永遠開不了。
-export async function startVote(motionId: number): Promise<boolean> {
-  const { rows } = await query<{ agenda_item_id: number }>(
-    `SELECT agenda_item_id FROM motions WHERE id = $1`,
+// 結算一案（同一 transaction 內）：鎖列、以「當下」的已簽到／應到與票數判定，寫回快照。
+// 只結算 open 的案；不是 open 回 null。
+async function settleMotion(client: PoolClient, motionId: number): Promise<MotionEvaluation | null> {
+  const { rows } = await client.query<{ threshold: string; status: string; meeting_id: number }>(
+    `SELECT m.threshold, m.status, ai.meeting_id
+       FROM motions m JOIN agenda_items ai ON ai.id = m.agenda_item_id
+      WHERE m.id = $1 FOR UPDATE OF m`,
     [motionId],
   );
-  if (rows.length === 0) return false;
+  const m = rows[0];
+  if (!m || m.status !== "open") return null;
+
+  const { rows: p } = await client.query<{ expected: number; present: number }>(
+    `SELECT COUNT(*)::int AS expected, COUNT(*) FILTER (WHERE checked_in)::int AS present
+       FROM participants WHERE meeting_id = $1`,
+    [m.meeting_id],
+  );
+  const { rows: b } = await client.query<{ agree: number; against: number }>(
+    `SELECT COUNT(*) FILTER (WHERE vote_status = 'agree')::int AS agree,
+            COUNT(*) FILTER (WHERE vote_status = 'against')::int AS against
+       FROM ballots WHERE motion_id = $1`,
+    [motionId],
+  );
+  const tally = { threshold: m.threshold, agree: b[0].agree, against: b[0].against, present: p[0].present, expected: p[0].expected };
+  const ev = evaluateMotion(tally);
+  await client.query(
+    `UPDATE motions
+        SET status = 'closed', closed_at = now(), present_count = $2, expected_count = $3, result = $4
+      WHERE id = $1`,
+    [motionId, tally.present, tally.expected, ev.result],
+  );
+  return ev;
+}
+
+// 開啟表決：同會議其他進行中的案先結算（全站假設同時只有一個 open 案），再把這案設為 open。
+// 已結算的案不能重開（結果已定），回 "already-closed"。
+export async function startVote(motionId: number): Promise<"ok" | "not-found" | "already-closed"> {
+  const { rows } = await query<{ status: string; meeting_id: number }>(
+    `SELECT m.status, ai.meeting_id FROM motions m JOIN agenda_items ai ON ai.id = m.agenda_item_id WHERE m.id = $1`,
+    [motionId],
+  );
+  const target = rows[0];
+  if (!target) return "not-found";
+  if (target.status === "closed") return "already-closed";
+  if (target.status === "open") return "ok";
+
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await client.query(`UPDATE motions SET status = 'closed' WHERE agenda_item_id = $1 AND status = 'open'`, [rows[0].agenda_item_id]);
-    await client.query(`UPDATE motions SET status = 'open' WHERE id = $1`, [motionId]);
+    const { rows: open } = await client.query<{ id: number }>(
+      `SELECT m.id FROM motions m JOIN agenda_items ai ON ai.id = m.agenda_item_id
+        WHERE ai.meeting_id = $1 AND m.status = 'open'`,
+      [target.meeting_id],
+    );
+    for (const o of open) await settleMotion(client, o.id);
+    await client.query(`UPDATE motions SET status = 'open', opened_at = now() WHERE id = $1 AND status = ''`, [motionId]);
     await client.query("COMMIT");
-    return true;
+    return "ok";
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;
@@ -170,18 +215,24 @@ export async function startVote(motionId: number): Promise<boolean> {
   }
 }
 
-// 停止表決並結算。
-export async function stopVote(motionId: number): Promise<boolean> {
-  const { rowCount } = await query(`UPDATE motions SET status = 'closed' WHERE id = $1 AND status = 'open'`, [motionId]);
-  return rowCount > 0;
+// 停止表決並結算（寫入出席快照與結果）。不是 open 回 null。
+export async function stopVote(motionId: number): Promise<MotionEvaluation | null> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const ev = await settleMotion(client, motionId);
+    await client.query("COMMIT");
+    return ev;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export async function getMotion(motionId: number): Promise<Motion | null> {
-  const { rows } = await query<Motion>(
-    `SELECT id, agenda_item_id, title, description, threshold, status, position, created_at
-       FROM motions WHERE id = $1`,
-    [motionId],
-  );
+  const { rows } = await query<Motion>(`SELECT ${motionCols} FROM motions WHERE id = $1`, [motionId]);
   return rows[0] ?? null;
 }
 
@@ -303,6 +354,11 @@ export async function getMotionResults(motionId: number): Promise<{
   against: number;
   total: number;
   not_voted: number;
+  present_count: number | null;
+  expected_count: number | null;
+  result: Motion["result"];
+  /** 通過判定（open 用即時出席數，closed 用結算快照）；尚未開放為 null。 */
+  outcome: MotionOutcome | null;
   ballots: { voter_email: string; voter_name: string; vote_status: VoteStatus }[];
 } | null> {
   const motion = await getMotion(motionId);
@@ -321,8 +377,8 @@ export async function getMotionResults(motionId: number): Promise<{
         ORDER BY voter_name, b.voter_email`,
       [motionId],
     ),
-    query<{ email: string }>(
-      `SELECT p.email
+    query<{ email: string; checked_in: boolean }>(
+      `SELECT p.email, p.checked_in
          FROM participants p
          JOIN agenda_items ai ON ai.meeting_id = p.meeting_id
          JOIN motions m2 ON m2.agenda_item_id = ai.id
@@ -336,16 +392,23 @@ export async function getMotionResults(motionId: number): Promise<{
   const votedEmails = new Set(ballots.map((b) => b.voter_email));
   const notVoted = pRows.rows.filter((p) => !votedEmails.has(p.email)).map((p) => p.email);
   const count = (s: VoteStatus) => ballots.filter((b) => b.vote_status === s).length;
+  const agree = count("agree");
+  const against = count("against");
+  const live = { present: pRows.rows.filter((p) => p.checked_in).length, expected: pRows.rows.length };
 
   return {
     motion_id: motion.id,
     title: motion.title,
     threshold: motion.threshold,
     status: motion.status,
-    agree: count("agree"),
-    against: count("against"),
+    agree,
+    against,
     total: ballots.length,
     not_voted: notVoted.length,
+    present_count: motion.present_count,
+    expected_count: motion.expected_count,
+    result: motion.result,
+    outcome: motionOutcome({ ...motion, agree, against }, live),
     ballots,
   };
 }
@@ -363,6 +426,9 @@ export interface MeetingBallotMatrix {
     position: number;
     agenda_title: string;
     agenda_position: number;
+    present_count: number | null;
+    expected_count: number | null;
+    result: Motion["result"];
   }[];
   votes: Record<string, Record<string, VoteStatus>>; // participantEmail -> motionId -> status
   counts: Record<number, { agree: number; against: number }>;
@@ -376,6 +442,7 @@ export async function getMeetingBallots(meetingId: number): Promise<MeetingBallo
     ),
     query<MeetingBallotMatrix["motions"][number]>(
       `SELECT m.id, m.title, m.threshold, m.status, m.position,
+              m.present_count, m.expected_count, m.result,
               ai.title AS agenda_title, ai.position AS agenda_position
          FROM motions m
          JOIN agenda_items ai ON ai.id = m.agenda_item_id

@@ -1,6 +1,7 @@
 import "server-only";
 import { pool, query } from "@/lib/db";
 import { parseTaipeiLocal } from "@/lib/time";
+import type { MotionResult } from "@/lib/threshold";
 
 export interface Meeting {
   id: number;
@@ -47,6 +48,12 @@ export interface Motion {
   status: "" | "open" | "closed";
   position: number;
   created_at: string;
+  opened_at: string | null;
+  closed_at: string | null;
+  /** 結算當下的已簽到／應到；NULL＝未結算或舊資料（顯示層用即時數推算）。 */
+  present_count: number | null;
+  expected_count: number | null;
+  result: MotionResult | null;
 }
 
 export interface MotionWithCount extends Motion {
@@ -98,6 +105,9 @@ const meetingCols =
   "m.id, m.title, m.department, m.meeting_date::text AS meeting_date, m.starts_at, m.owner_sub, m.owner_email, m.owner_name, m.voting_enabled, m.location, m.online_link, m.description, m.status, m.current_agenda_item_id, m.created_at";
 
 const participantCols = "p.id, p.meeting_id, p.email, p.name, p.grade, p.checked_in, p.checked_in_at";
+
+export const motionCols =
+  "id, agenda_item_id, title, description, threshold, status, position, created_at, opened_at, closed_at, present_count, expected_count, result";
 
 export async function listMeetings(): Promise<MeetingListItem[]> {
   const { rows } = await query<MeetingListItem>(`
@@ -179,7 +189,7 @@ export async function getMeetingDetail(id: number): Promise<MeetingDetail | null
       [id],
     ),
     query<Motion>(
-      `SELECT id, agenda_item_id, title, description, threshold, status, position, created_at
+      `SELECT ${motionCols}
          FROM motions
         WHERE agenda_item_id IN (SELECT id FROM agenda_items WHERE meeting_id = $1)
         ORDER BY position ASC, id ASC`,

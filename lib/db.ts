@@ -109,6 +109,13 @@ async function createSchema(): Promise<void> {
       created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
     );
     CREATE INDEX IF NOT EXISTS idx_motions_agenda ON motions (agenda_item_id, position);
+    -- 結算快照（停止表決時寫入）：事後名單變動不影響結果；NULL＝未結算或舊資料
+    ALTER TABLE motions ADD COLUMN IF NOT EXISTS opened_at TIMESTAMPTZ;
+    ALTER TABLE motions ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ;
+    ALTER TABLE motions ADD COLUMN IF NOT EXISTS present_count INTEGER;
+    ALTER TABLE motions ADD COLUMN IF NOT EXISTS expected_count INTEGER;
+    -- 'passed' | 'rejected' | 'no_quorum'
+    ALTER TABLE motions ADD COLUMN IF NOT EXISTS result TEXT;
 
     -- 具名票（需求：同意／不同意／未投票，公開透明）
     CREATE TABLE IF NOT EXISTS ballots (
