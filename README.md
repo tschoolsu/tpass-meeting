@@ -132,11 +132,13 @@ curl -X POST https://meeting.tschoolsu.org/api/v1/meetings \
 
 ## 資料庫
 
-Schema 由 `lib/db.ts` 冪等初始化（`CREATE TABLE IF NOT EXISTS`），涵蓋：`meetings`（含 `location`／`online_link`／`description`／`status`）、`participants`（含 `grade`）、`agenda_items`、`agenda_attachments`、`motions`（各自帶`門檻 threshold`與`status`）、`ballots`（具名 `agree`／`against`）、`notification_queue`（Email 派送佇列）、`meeting_notes`。本機建庫指令：
+**Prisma 7 + PostgreSQL + migrations**（`@prisma/adapter-pg`）。schema 在 `prisma/schema.prisma`，涵蓋：`meetings`（含 `location`／`online_link`／`description`／`status`）、`participants`（含 `grade`）、`agenda_items`、`agenda_attachments`、`motions`（各自帶`門檻 threshold`與`status`）、`ballots`（具名 `agree`／`against`）、`notification_queue`（Email 派送佇列）、`meeting_notes`、`meeting_editors`、`api_keys`、`departments`。啟動時不跑任何 DDL；schema 變更 `pnpm exec prisma migrate dev --name <說明>`，本機套用別人的 migration `pnpm exec prisma migrate dev`，正式機由 `tpass deploy meeting` 跑 `prisma migrate deploy`。`0_init` 是 2026-09-02 之前用 `lib/db.ts` 自建 DDL 的既有庫 baseline——那些庫用 `pnpm exec prisma migrate resolve --applied 0_init` 標記一次即可。本機建庫指令：
 
 ```bash
 sudo -u postgres psql -c "CREATE ROLE t_meeting WITH LOGIN PASSWORD '<隨機密碼>';"
 sudo -u postgres psql -c "CREATE DATABASE t_meeting OWNER t_meeting;"
+pnpm exec prisma migrate dev     # 全新的庫：套所有 migration
+pnpm db:seed                     # 選用：env DEPARTMENTS → departments 表（表非空不灌）
 ```
 
 ## 開發與部署

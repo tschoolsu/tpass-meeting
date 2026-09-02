@@ -100,3 +100,14 @@ A＝建立者（moderator）、B＝受邀學生（default）、C＝另一個 mod
 - **協作者不能撤銷**（工作台 ④ 只能授權）。
 - **學生自建會議的開關**（`ALLOW_STUDENT_CREATE`）沒有 UI 測過。
 - **棄權**：ballots 只有同意／不同意，未投視同不同意。
+
+## 2026-09-02：資料層搬到 Prisma 7 + migrations
+
+當天事故：`lib/db.ts` 每次 process 啟動把整包 `CREATE TABLE IF NOT EXISTS`／`ALTER TABLE`／`UPDATE motions`／`DELETE … USING` 當一個交易跑，對所有表拿 AccessExclusiveLock，跟正在跑的查詢撞出 deadlock；`Pool` 沒掛 `error` handler，PostgreSQL 一重啟就滿版 uncaughtException；每次停機 Next 等 SSE 收不完被 pm2 SIGKILL。T-Pass 準則因此定死「只准 Prisma 7 + migrations、禁止啟動時 DDL」（tpass-ops `docs/handbook/01-new-service.md`〈資料庫〉）。
+
+- schema 用 `prisma db pull` 從既有庫拉出，表名／欄位名不改；`0_init` 是 baseline（`migrate diff --from-empty` + 手動補回 6 條 `CHECK`），既有庫 `migrate resolve --applied 0_init`。
+- `lib/db.ts` 只剩 `prisma` 單例（池 25、逾時明確）+ 給 LISTEN 用的 `listenClient()`／`stopListen()`。61 個 SQL 呼叫點全改 Prisma Client；`FOR UPDATE` 鎖列留 `$queryRaw`、`TRUNCATE` 留 `$executeRawUnsafe`（固定字串）、`pg_notify` 走 `$executeRaw`。
+- 刪掉 `migrateLegacyVoteShape`（偵測舊 `vote_questions` 表就 DROP）；`seedDepartments` 搬成 `pnpm db:seed`。
+- 關機：`lib/shutdown.ts` 在 SIGINT/SIGTERM 依序關 SSE（`registerStreamClose`）→ LISTEN → `prisma.$disconnect()`，不 `process.exit`。
+- 上面「`notification_queue` 沒有 unique」那句已過時：LOGIC-001 加了 `UNIQUE(meeting_id, email)`，重複 enqueue 靠 `skipDuplicates`；`canTransition` 仍是第一道防線。
+

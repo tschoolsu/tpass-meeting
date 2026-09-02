@@ -6,7 +6,8 @@
 // 事件永遠送不到。改走 DB 廣播：broadcast() 只發 pg_notify（跨任何 bundle/process），
 // SSE route 所在 bundle 內部的共享 subscriber 集合作為唯一「會在該送出端點」的收件者。
 //
-// 訂閱者與 relay 掛在 globalThis：不同 bundle 各載一份本模組時仍共用同一份狀態。
+// 同理，關機要用到的狀態（訂閱者、relay、要關的 SSE、stopping 旗標）全部掛在 globalThis：
+// instrumentation.ts 的 signal handler 跟 SSE route 不在同一個 bundle，模組層的變數彼此看不到。
 import "server-only";
 import type { Client } from "pg";
 import { listenClient, prisma } from "@/lib/db";
@@ -18,17 +19,21 @@ const CHANNEL = "tpm_live";
 interface StreamState {
   subscribers: Map<number, Set<Listener>>;
   relay: Promise<void> | null;
+  // 每一條開著的 SSE 的關閉函式；關機時逐一呼叫，Next 的 server.close() 才收得完。
+  closers: Set<() => void>;
+  stopping: boolean;
 }
 
 const g = globalThis as unknown as { __tpmStream?: StreamState };
 const state: StreamState =
-  g.__tpmStream ?? (g.__tpmStream = { subscribers: new Map(), relay: null });
+  g.__tpmStream ?? (g.__tpmStream = { subscribers: new Map(), relay: null, closers: new Set(), stopping: false });
 
-// 背景 relay：一條專用的 pg client 監聯 CHANNEL，收到通知後派給該會議的訂閱者。斷線 5 秒後重連。
+// 背景 relay：一條專用的 pg client 監聯 CHANNEL，收到通知後派給該會議的訂閱者。斷線 5 秒後重連；
+// 關機（stopping）就不再重連、迴圈結束。
 function ensureRelay(): Promise<void> {
   if (state.relay) return state.relay;
   state.relay = (async () => {
-    for (;;) {
+    while (!state.stopping) {
       let client: Client;
       try {
         client = await listenClient();
@@ -72,8 +77,9 @@ function ensureRelay(): Promise<void> {
       } catch {
         /* 已斷線可忽略 */
       }
-      await sleep(5000);
+      if (!state.stopping) await sleep(5000);
     }
+    state.relay = null;
   })();
   return state.relay;
 }
@@ -96,6 +102,30 @@ export function subscribe(meetingId: number, listener: Listener): () => void {
     set.delete(listener);
     if (set.size === 0) state.subscribers.delete(meetingId);
   };
+}
+
+// SSE route 建 stream 時登記「怎麼把這條收掉」；回傳取消登記（client 自己斷線時呼叫）。
+// prod 下 SSE 永遠不會自己結束，沒有這個 Next 的 server.close() 永遠等不完、pm2 只能 SIGKILL。
+export function registerStreamClose(fn: () => void): () => void {
+  state.closers.add(fn);
+  return () => {
+    state.closers.delete(fn);
+  };
+}
+
+// 關機：關掉所有 SSE、標記 stopping 讓 relay 不再重連。LISTEN 連線本身由 lib/db.ts 的 stopListen() 收。
+export function closeAllStreams(): number {
+  state.stopping = true;
+  const fns = [...state.closers];
+  state.closers.clear();
+  for (const fn of fns) {
+    try {
+      fn();
+    } catch {
+      /* 能關就關 */
+    }
+  }
+  return fns.length;
 }
 
 // 對該場會議的所有訂閱者推播事件：透過 DB NOTIFY 送出（跨 bundle/process 皆可靠）。

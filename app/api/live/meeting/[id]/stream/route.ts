@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { getSession, isModerator } from "@/lib/auth";
-import { subscribe } from "@/lib/stream";
+import { registerStreamClose, subscribe } from "@/lib/stream";
 import { canViewMeeting, getMeeting, isParticipant } from "@/lib/meetings";
 
 // GET /api/live/meeting/:id/stream —— Server-Sent Events。
@@ -51,12 +51,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     closed = true;
     unsubscribe();
     clearInterval(heartbeat);
+    unregisterClose();
   };
 
   // 心跳：避免 proxy 因閒置斷線
   const heartbeat = setInterval(() => {
     if (!closed) send("heartbeat", { t: Date.now() });
   }, 25000);
+
+  // 關機（SIGINT/SIGTERM）時由 instrumentation.ts 主動收掉這條 stream，Next 的 server.close() 才等得完。
+  const unregisterClose = registerStreamClose(() => {
+    cleanup();
+    try {
+      controller.close();
+    } catch {
+      /* 已經關了 */
+    }
+  });
 
   request.signal.addEventListener("abort", cleanup, { once: true });
 
