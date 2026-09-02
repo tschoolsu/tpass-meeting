@@ -5,28 +5,35 @@
 // 記憶體 Map 會重複 → chair 的 broadcast() 與 SSE route 的 subscribe() 落在不同實例，
 // 事件永遠送不到。改走 DB 廣播：broadcast() 只發 pg_notify（跨任何 bundle/process），
 // SSE route 所在 bundle 內部的共享 subscriber 集合作為唯一「會在該送出端點」的收件者。
+//
+// 訂閱者與 relay 掛在 globalThis：不同 bundle 各載一份本模組時仍共用同一份狀態。
 import "server-only";
-import { pool } from "@/lib/db";
+import type { Client } from "pg";
+import { listenClient, prisma } from "@/lib/db";
 
 type Listener = (event: string, payload: unknown) => void;
 
 const CHANNEL = "tpm_live";
 
-// 同一模組實例內的订阅者集合（與 relay 同實例，確保能收到）。
-const subscribers = new Map<number, Set<Listener>>();
+interface StreamState {
+  subscribers: Map<number, Set<Listener>>;
+  relay: Promise<void> | null;
+}
 
-let relay: Promise<void> | null = null;
+const g = globalThis as unknown as { __tpmStream?: StreamState };
+const state: StreamState =
+  g.__tpmStream ?? (g.__tpmStream = { subscribers: new Map(), relay: null });
 
-// 背景 relay：一個專門的 pg client 監聽 CHANNEL，收到通知後派給該會議的订阅者。
+// 背景 relay：一條專用的 pg client 監聯 CHANNEL，收到通知後派給該會議的訂閱者。斷線 5 秒後重連。
 function ensureRelay(): Promise<void> {
-  if (relay) return relay;
-  relay = (async () => {
+  if (state.relay) return state.relay;
+  state.relay = (async () => {
     for (;;) {
-      let client;
+      let client: Client;
       try {
-        client = await pool.connect();
+        client = await listenClient();
       } catch (err) {
-        console.error("[stream] 無法取得 DB 連線，5 秒後重試", err);
+        console.error("[stream] 無法建立 LISTEN 連線，5 秒後重試", err);
         await sleep(5000);
         continue;
       }
@@ -39,75 +46,63 @@ function ensureRelay(): Promise<void> {
         } catch {
           return;
         }
-        const set = subscribers.get(data.meetingId);
+        const set = state.subscribers.get(data.meetingId);
         if (!set) return;
-        const snapshot = [...set];
-        for (const fn of snapshot) {
+        for (const fn of [...set]) {
           try {
             fn(data.event, data.payload);
           } catch {
-            /* 單一订阅者失敗不影響其他订阅者 */
+            /* 單一訂閱者失敗不影響其他訂閱者 */
           }
         }
       });
 
-      client.on("error", () => {
-        /* 交由下方 while loop 重連 */
-      });
-
       try {
         await client.query(`LISTEN ${CHANNEL}`);
-        // 每次通知處理完即回到此等待；斷線就跳出重連
+        // 佇在這裡直到連線結束（error handler 在 lib/db.ts 掛好了，這裡只等 end）
         await new Promise<void>((resolve) => {
-          const onEnd = () => {
-            client.removeListener("notification", () => {});
-            try {
-              client.release(true);
-            } catch {
-              /* 已斷線可忽略 */
-            }
-            resolve();
-          };
-          client.once("end", onEnd);
-          client.once("error", onEnd);
+          client.once("end", () => resolve());
+          client.once("error", () => resolve());
         });
       } catch (err) {
         console.error("[stream] LISTEN 失敗，5 秒後重連", err);
-        try {
-          client.release(true);
-        } catch {
-          /* ignore */
-        }
-        await sleep(5000);
       }
+      try {
+        await client.end();
+      } catch {
+        /* 已斷線可忽略 */
+      }
+      await sleep(5000);
     }
   })();
-  return relay;
+  return state.relay;
 }
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
+  return new Promise((r) => {
+    const t = setTimeout(r, ms);
+    // 不讓等待重連的計時器擋住 process 正常退出
+    t.unref?.();
+  });
 }
 
 // 訂閱某場會議；回傳取消訂閱的 cleanup function。
 export function subscribe(meetingId: number, listener: Listener): () => void {
-  ensureRelay();
-  const set = subscribers.get(meetingId) ?? new Set<Listener>();
+  void ensureRelay();
+  const set = state.subscribers.get(meetingId) ?? new Set<Listener>();
   set.add(listener);
-  subscribers.set(meetingId, set);
+  state.subscribers.set(meetingId, set);
   return () => {
     set.delete(listener);
-    if (set.size === 0) subscribers.delete(meetingId);
+    if (set.size === 0) state.subscribers.delete(meetingId);
   };
 }
 
-// 對該場會議的所有订阅者推播事件：透過 DB NOTIFY 送出（跨 bundle/process 皆可靠）。
+// 對該場會議的所有訂閱者推播事件：透過 DB NOTIFY 送出（跨 bundle/process 皆可靠）。
 export async function broadcast(meetingId: number, event: string, payload: unknown): Promise<void> {
   try {
-    await pool.query(
-      `SELECT pg_notify($1, $2)`,
-      [CHANNEL, JSON.stringify({ meetingId, event, payload })],
-    );
+    const message = JSON.stringify({ meetingId, event, payload });
+    await prisma.$executeRaw`SELECT pg_notify(${CHANNEL}, ${message})`;
   } catch (err) {
     console.error(`[stream] broadcast 失敗（meeting ${meetingId}）`, err);
   }
@@ -118,9 +113,4 @@ export async function broadcast(meetingId: number, event: string, payload: unkno
 // 快照（/api/live/meeting/:id）本來就是唯一事實來源，SSE 只當鈴聲。
 export function notifyMeetingChanged(meetingId: number, reason: string): Promise<void> {
   return broadcast(meetingId, "CHANGED", { reason, at: Date.now() });
-}
-
-// 供測試／重連使用：清空所有闭源码（伺服器重啟時用）。
-export function _resetRelayForTesting(): void {
-  relay = null;
 }

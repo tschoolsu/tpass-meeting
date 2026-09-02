@@ -11,7 +11,7 @@ import {
 import { isStarted } from "@/lib/time";
 import { canTransition } from "@/lib/meeting-status";
 import { canDeleteNote } from "@/lib/note-permissions";
-import { query } from "@/lib/db";
+import { prisma } from "@/lib/db";
 import { createApiKey, deleteApiKey } from "@/lib/api-keys";
 import { importAll } from "@/lib/backup";
 import { saveBgm, clearBgm, MAX_BGM_BYTES } from "@/lib/bgm";
@@ -143,8 +143,9 @@ export async function setMeetingStatusAction(id: number, status: string): Promis
   if (!canTransition(meeting.status, status)) return { error: "這個狀態轉移不合法" };
   if (status === "closed" && (await hasOpenMotion(id))) return { error: "有表決進行中，請先在主席控制台停止" };
 
-  const { rowCount } = await query(`UPDATE meetings SET status = $1 WHERE id = $2 AND status = $3`, [status, id, meeting.status]);
-  if (rowCount === 0) return { error: "狀態已被其他人更新，請重新整理" };
+  // WHERE status = 舊狀態：兩個人同時按，只有一個會成功（樂觀鎖）
+  const { count } = await prisma.meetings.updateMany({ where: { id, status: meeting.status }, data: { status } });
+  if (count === 0) return { error: "狀態已被其他人更新，請重新整理" };
 
   if (meeting.status === "draft" && status === "published") {
     // 第一次發布才寄通知（需求 6）：只 enqueue，實際派送交給背景 worker（H-2）。
@@ -157,12 +158,8 @@ export async function setMeetingStatusAction(id: number, status: string): Promis
 }
 
 async function hasOpenMotion(meetingId: number): Promise<boolean> {
-  const { rows } = await query<{ n: number }>(
-    `SELECT COUNT(*)::int AS n FROM motions m JOIN agenda_items a ON a.id = m.agenda_item_id
-      WHERE a.meeting_id = $1 AND m.status = 'open'`,
-    [meetingId],
-  );
-  return (rows[0]?.n ?? 0) > 0;
+  const n = await prisma.motions.count({ where: { status: "open", agenda_items: { meeting_id: meetingId } } });
+  return n > 0;
 }
 
 export async function checkInAction(meetingId: number): Promise<FormState & { done?: boolean }> {
@@ -413,12 +410,7 @@ export async function deleteAttachmentAction(attachmentId: number, meetingId: nu
   const att = await getAttachment(attachmentId);
   if (!att || att.meeting_id !== meetingId) return { error: "附件不存在或未授權" };
   await deleteAttachmentFile(att.storage_path);
-  const { query } = await import("@/lib/db");
-  await query(
-    `DELETE FROM agenda_attachments
-      WHERE id = $1 AND agenda_item_id IN (SELECT id FROM agenda_items WHERE meeting_id = $2)`,
-    [attachmentId, meetingId],
-  );
+  await prisma.agenda_attachments.deleteMany({ where: { id: attachmentId, agenda_items: { meeting_id: meetingId } } });
   revalidatePath(`/read?id=${meetingId}`);
   return {};
 }
@@ -440,17 +432,15 @@ export async function addParticipantEmailsAction(meetingId: number, _prev: FormS
     return { error: err instanceof VE ? err.message : "輸入資料不正確" };
   }
 
-  const { query } = await import("@/lib/db");
-  let added = 0;
+  // 已在名單裡的人只更新年級（原本的 ON CONFLICT DO UPDATE）
   for (const e of entries) {
-    const r = await query(
-      `INSERT INTO participants (meeting_id, email, grade)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (meeting_id, email) DO UPDATE SET grade = EXCLUDED.grade`,
-      [meetingId, e.email, e.grade],
-    );
-    if (r.rowCount && r.rowCount > 0) added++;
+    await prisma.participants.upsert({
+      where: { meeting_id_email: { meeting_id: meetingId, email: e.email } },
+      create: { meeting_id: meetingId, email: e.email, grade: e.grade },
+      update: { grade: e.grade },
+    });
   }
+  const added = entries.length;
   await notifyMeetingChanged(meetingId, "edit");
   revalidatePath(`/read?id=${meetingId}`);
   revalidatePath(`/checkin?id=${meetingId}`);

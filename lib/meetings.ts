@@ -1,9 +1,24 @@
 import "server-only";
-import { pool, query } from "@/lib/db";
+import type {
+  agenda_attachments as AgendaAttachmentRow,
+  agenda_items as AgendaItemRow,
+  meeting_notes as MeetingNoteRow,
+  meetings as MeetingRow,
+  motions as MotionRow,
+  participants as ParticipantRow,
+} from "@/generated/prisma/client";
+import { prisma } from "@/lib/db";
 import { parseTaipeiLocal } from "@/lib/time";
 import type { MotionResult } from "@/lib/threshold";
 import { deleteAttachmentFile } from "@/lib/attachment-store";
 import { fillNames } from "@/lib/name-map";
+
+// ---- 對外形狀 ----
+//
+// 這些 interface 是呼叫端（頁面、API route、live-state）吃的形狀，欄位名跟 DB 一樣。
+// 跟 Prisma 生成型別的差別只在「時間是 ISO 字串、meeting_date 是 YYYY-MM-DD、size 是 number」——
+// pg 時代 timestamptz 也是回 Date、只是 interface 宣稱 string；現在由下面的 to*() 轉換函式把話說清楚，
+// 跨 RSC / JSON 邊界的結果跟以前一模一樣。
 
 export interface Meeting {
   id: number;
@@ -105,178 +120,200 @@ export interface MeetingDetail {
   notes: MeetingNote[];
 }
 
-const meetingCols =
-  "m.id, m.title, m.department, m.meeting_date::text AS meeting_date, m.starts_at, m.owner_sub, m.owner_email, m.owner_name, m.voting_enabled, m.location, m.online_link, m.description, m.status, m.current_agenda_item_id, m.created_at";
+// ---- Prisma row → 對外形狀 ----
 
-export const motionCols =
-  "id, agenda_item_id, title, description, threshold, status, position, created_at, opened_at, closed_at, present_count, expected_count, result";
+const iso = (d: Date): string => d.toISOString();
+const isoOrNull = (d: Date | null): string | null => (d ? d.toISOString() : null);
+// @db.Date 讀出來是 UTC 午夜的 Date；取日期部分就是原本 `meeting_date::text` 的 YYYY-MM-DD。
+export const dateOnly = (d: Date): string => d.toISOString().slice(0, 10);
+// 反向：YYYY-MM-DD → 寫進 @db.Date 用的 Date（UTC 午夜，只取日期）。
+export const dateFromYmd = (ymd: string): Date => new Date(`${ymd}T00:00:00.000Z`);
+
+export function toMeeting(r: MeetingRow): Meeting {
+  return {
+    id: r.id,
+    title: r.title,
+    department: r.department,
+    meeting_date: dateOnly(r.meeting_date),
+    starts_at: iso(r.starts_at),
+    owner_sub: r.owner_sub,
+    owner_email: r.owner_email,
+    owner_name: r.owner_name,
+    voting_enabled: r.voting_enabled,
+    location: r.location,
+    online_link: r.online_link,
+    description: r.description,
+    status: r.status,
+    current_agenda_item_id: r.current_agenda_item_id,
+    created_at: iso(r.created_at),
+  };
+}
+
+export function toParticipant(r: ParticipantRow): Participant {
+  return {
+    id: r.id,
+    email: r.email,
+    name: r.name,
+    grade: r.grade,
+    checked_in: r.checked_in,
+    checked_in_at: isoOrNull(r.checked_in_at),
+  };
+}
+
+export function toMotion(r: MotionRow): Motion {
+  return {
+    id: r.id,
+    agenda_item_id: r.agenda_item_id,
+    title: r.title,
+    description: r.description,
+    threshold: r.threshold,
+    status: r.status as Motion["status"],
+    position: r.position,
+    created_at: iso(r.created_at),
+    opened_at: isoOrNull(r.opened_at),
+    closed_at: isoOrNull(r.closed_at),
+    present_count: r.present_count,
+    expected_count: r.expected_count,
+    result: r.result as MotionResult | null,
+  };
+}
+
+export function toAgendaItem(r: AgendaItemRow): AgendaItem {
+  return {
+    id: r.id,
+    meeting_id: r.meeting_id,
+    position: r.position,
+    title: r.title,
+    description: r.description,
+    created_at: iso(r.created_at),
+  };
+}
+
+export function toAttachment(r: AgendaAttachmentRow): AgendaAttachment {
+  return {
+    id: r.id,
+    agenda_item_id: r.agenda_item_id,
+    filename: r.filename,
+    mime: r.mime,
+    size: Number(r.size),
+    storage_path: r.storage_path,
+    uploaded_at: iso(r.uploaded_at),
+  };
+}
+
+export function toNote(r: MeetingNoteRow): MeetingNote {
+  return {
+    id: r.id,
+    author_email: r.author_email,
+    author_name: r.author_name,
+    author_sub: r.author_sub,
+    body: r.body,
+    created_at: iso(r.created_at),
+  };
+}
+
+// ---- 列表 ----
+
+const listOrder = [{ meeting_date: "desc" }, { id: "desc" }] as const;
+
+// 每場會議的已簽到人數（列表頁用）；一次 GROUP BY，不是每場各打一槍。
+async function checkedCounts(meetingIds: number[]): Promise<Map<number, number>> {
+  if (meetingIds.length === 0) return new Map();
+  const rows = await prisma.participants.groupBy({
+    by: ["meeting_id"],
+    where: { meeting_id: { in: meetingIds }, checked_in: true },
+    _count: { _all: true },
+  });
+  return new Map(rows.map((r) => [r.meeting_id, r._count._all]));
+}
+
+async function toListItems(
+  rows: (MeetingRow & { _count: { participants: number } })[],
+): Promise<MeetingListItem[]> {
+  const checked = await checkedCounts(rows.map((r) => r.id));
+  return rows.map((r) => ({
+    ...toMeeting(r),
+    participant_count: r._count.participants,
+    checked_count: checked.get(r.id) ?? 0,
+  }));
+}
 
 export async function listMeetings(): Promise<MeetingListItem[]> {
-  const { rows } = await query<MeetingListItem>(`
-    SELECT ${meetingCols},
-           COUNT(DISTINCT p.id)::int AS participant_count,
-           COUNT(DISTINCT p.id) FILTER (WHERE p.checked_in)::int AS checked_count
-    FROM meetings m
-    LEFT JOIN participants p ON p.meeting_id = m.id
-    GROUP BY m.id
-    ORDER BY m.meeting_date DESC, m.id DESC
-  `);
-  return rows;
+  const rows = await prisma.meetings.findMany({
+    include: { _count: { select: { participants: true } } },
+    orderBy: [...listOrder],
+  });
+  return toListItems(rows);
 }
 
 // 一般學生（default）能看到自己受邀的會議，且只能看到這些。
 export async function listMyMeetings(email: string): Promise<MeetingListItem[]> {
-  const { rows } = await query<MeetingListItem>(`
-    SELECT ${meetingCols},
-           COUNT(DISTINCT p.id)::int AS participant_count,
-           COUNT(DISTINCT p.id) FILTER (WHERE p.checked_in)::int AS checked_count
-    FROM meetings m
-    JOIN participants p ON p.meeting_id = m.id
-    WHERE p.email = LOWER($1)
-    GROUP BY m.id
-    ORDER BY m.meeting_date DESC, m.id DESC
-  `, [email]);
-  return rows;
+  const rows = await prisma.meetings.findMany({
+    where: { participants: { some: { email: email.toLowerCase() } } },
+    include: { _count: { select: { participants: true } } },
+    orderBy: [...listOrder],
+  });
+  return toListItems(rows);
 }
 
 export async function getMeeting(id: number): Promise<Meeting | null> {
-  const { rows } = await query<Meeting>(
-    `SELECT ${meetingCols} FROM meetings m WHERE m.id = $1`,
-    [id],
-  );
-  return rows[0] ?? null;
+  const row = await prisma.meetings.findUnique({ where: { id } });
+  return row ? toMeeting(row) : null;
 }
 
 export async function countMeetings(): Promise<number> {
-  const { rows } = await query<{ count: number }>(
-    `SELECT COUNT(*)::int AS count FROM meetings`,
-  );
-  return rows[0]?.count ?? 0;
+  return prisma.meetings.count();
 }
 
 export async function getMeetingDetail(id: number): Promise<MeetingDetail | null> {
-  // C-1：原本這函式用 Promise.all 平行跑 7 條查詢（1 個 request 同時吃 7 條 pool 連線），
-  // pool 一滿 request 就無限排隊。現在併成 3 條查詢：
-  //   1) meeting + participants + notes（json_agg 子查詢）
-  //   2) agenda_items + attachments（json_agg 子查詢）
-  //   3) motions + ballots 計數（一次 GROUP BY 掃完）
-  // 單一 request 最多只佔 1–2 條連線，多人同時使用時連線池壓力大幅下降。
-  const [detailRow, aRows] = await Promise.all([
-    query<{
-      id: number;
-      title: string;
-      department: string;
-      meeting_date: string;
-      starts_at: string;
-      owner_sub: string;
-      owner_email: string;
-      owner_name: string;
-      voting_enabled: boolean;
-      location: string;
-      online_link: string;
-      description: string;
-      status: string;
-      current_agenda_item_id: number | null;
-      created_at: string;
-      participants: unknown;
-      notes: unknown;
-    }>(
-      `SELECT ${meetingCols},
-              COALESCE((
-                SELECT json_agg(json_build_object(
-                  'id', p.id, 'meeting_id', p.meeting_id, 'email', p.email, 'name', p.name, 'grade', p.grade,
-                  'checked_in', p.checked_in, 'checked_in_at', p.checked_in_at)
-                  ORDER BY p.checked_in DESC, p.email ASC)
-                FROM participants p WHERE p.meeting_id = m.id
-              ), '[]'::json) AS participants,
-              COALESCE((
-                SELECT json_agg(json_build_object(
-                  'id', n.id, 'author_email', n.author_email, 'author_name', n.author_name,
-                  'author_sub', n.author_sub, 'body', n.body, 'created_at', n.created_at)
-                  ORDER BY n.id DESC)
-                FROM meeting_notes n WHERE n.meeting_id = m.id
-              ), '[]'::json) AS notes
-         FROM meetings m
-        WHERE m.id = $1`,
-      [id],
-    ),
-    query<{
-      id: number;
-      meeting_id: number;
-      position: number;
-      title: string;
-      description: string;
-      created_at: string;
-      attachments: unknown;
-    }>(
-      `SELECT a.id, a.meeting_id, a.position, a.title, a.description, a.created_at,
-              COALESCE((
-                SELECT json_agg(json_build_object(
-                  'id', at2.id, 'agenda_item_id', at2.agenda_item_id, 'filename', at2.filename,
-                  'mime', at2.mime, 'size', at2.size, 'storage_path', at2.storage_path, 'uploaded_at', at2.uploaded_at)
-                  ORDER BY at2.id ASC)
-                FROM agenda_attachments at2 WHERE at2.agenda_item_id = a.id
-              ), '[]'::json) AS attachments
-         FROM agenda_items a
-        WHERE a.meeting_id = $1
-        ORDER BY a.position ASC, a.id ASC`,
-      [id],
-    ),
+  // C-1：三段查詢——會議＋參與人＋紀錄、議程＋附件、表決案＋票數——單一 request 最多佔 1–2 條連線。
+  const [row, aRows, mRows] = await Promise.all([
+    prisma.meetings.findUnique({
+      where: { id },
+      include: {
+        participants: { orderBy: [{ checked_in: "desc" }, { email: "asc" }] },
+        meeting_notes: { orderBy: { id: "desc" } },
+      },
+    }),
+    prisma.agenda_items.findMany({
+      where: { meeting_id: id },
+      include: { agenda_attachments: { orderBy: { id: "asc" } } },
+      orderBy: [{ position: "asc" }, { id: "asc" }],
+    }),
+    prisma.motions.findMany({
+      where: { agenda_items: { meeting_id: id } },
+      orderBy: [{ position: "asc" }, { id: "asc" }],
+    }),
   ]);
-
-  const row = detailRow.rows[0];
   if (!row) return null;
-  const meeting: Meeting = {
-    id: row.id,
-    title: row.title,
-    department: row.department,
-    meeting_date: row.meeting_date,
-    starts_at: row.starts_at,
-    owner_sub: row.owner_sub,
-    owner_email: row.owner_email,
-    owner_name: row.owner_name,
-    voting_enabled: row.voting_enabled,
-    location: row.location,
-    online_link: row.online_link,
-    description: row.description,
-    status: row.status,
-    current_agenda_item_id: row.current_agenda_item_id,
-    created_at: row.created_at,
-  };
-  // 名字三層退回：DB name（登入回填）→ name-map.csv 對照表 → 空字串（顯示層再退回 email）
-  const participants = await fillNames((row.participants as Participant[]) ?? []);
-  const notes = (row.notes as MeetingNote[]) ?? [];
 
-  const mRows = await query<MotionWithCount>(
-    `SELECT mo.id, mo.agenda_item_id, mo.title, mo.description, mo.threshold, mo.status, mo.position, mo.created_at,
-            mo.opened_at, mo.closed_at, mo.present_count, mo.expected_count, mo.result,
-            COALESCE(COUNT(b.id) FILTER (WHERE b.vote_status = 'agree'), 0)::int AS agree,
-            COALESCE(COUNT(b.id) FILTER (WHERE b.vote_status = 'against'), 0)::int AS against
-       FROM motions mo
-       JOIN agenda_items a ON a.id = mo.agenda_item_id
-       LEFT JOIN ballots b ON b.motion_id = mo.id
-      WHERE a.meeting_id = $1
-      GROUP BY mo.id
-      ORDER BY mo.position ASC, mo.id ASC`,
-    [id],
-  );
+  const meeting = toMeeting(row);
+  // 名字三層退回：DB name（登入回填）→ name-map.csv 對照表 → 空字串（顯示層再退回 email）
+  const participants = await fillNames(row.participants.map(toParticipant));
+  const notes = row.meeting_notes.map(toNote);
+
+  // 票數：一次 GROUP BY 掃完這場所有案的票
+  const tallies = mRows.length
+    ? await prisma.ballots.groupBy({
+        by: ["motion_id", "vote_status"],
+        where: { motion_id: { in: mRows.map((m) => m.id) } },
+        _count: { _all: true },
+      })
+    : [];
+  const countOf = (motionId: number, status: VoteStatus) =>
+    tallies.find((t) => t.motion_id === motionId && t.vote_status === status)?._count._all ?? 0;
 
   const motionByItem = new Map<number, MotionWithCount[]>();
-  for (const m2 of mRows.rows) {
-    const list = motionByItem.get(m2.agenda_item_id) ?? [];
-    list.push(m2);
-    motionByItem.set(m2.agenda_item_id, list);
+  for (const m of mRows) {
+    const list = motionByItem.get(m.agenda_item_id) ?? [];
+    list.push({ ...toMotion(m), agree: countOf(m.id, "agree"), against: countOf(m.id, "against") });
+    motionByItem.set(m.agenda_item_id, list);
   }
 
-  const agenda: AgendaItemFull[] = aRows.rows.map((a) => ({
-    id: a.id,
-    meeting_id: a.meeting_id,
-    position: a.position,
-    title: a.title,
-    description: a.description,
-    created_at: a.created_at,
+  const agenda: AgendaItemFull[] = aRows.map((a) => ({
+    ...toAgendaItem(a),
     motions: motionByItem.get(a.id) ?? [],
-    attachments: (a.attachments as AgendaAttachment[]) ?? [],
+    attachments: a.agenda_attachments.map(toAttachment),
   }));
 
   // current = null 就是「簽到階段」（會議一開始先簽到，主席按「下一案」才進議程 1）。
@@ -286,21 +323,15 @@ export async function getMeetingDetail(id: number): Promise<MeetingDetail | null
     agenda.find((a) => a.motions.some((m) => m.status === "open")) ??
     null;
 
-  return {
-    meeting,
-    participants,
-    agenda,
-    current,
-    notes,
-  };
+  return { meeting, participants, agenda, current, notes };
 }
 
 export async function isParticipant(meetingId: number, email: string): Promise<boolean> {
-  const { rows } = await query<{ one: number }>(
-    `SELECT 1 AS one FROM participants WHERE meeting_id = $1 AND email = LOWER($2)`,
-    [meetingId, email],
-  );
-  return rows.length > 0;
+  const row = await prisma.participants.findUnique({
+    where: { meeting_id_email: { meeting_id: meetingId, email: email.toLowerCase() } },
+    select: { id: true },
+  });
+  return row !== null;
 }
 
 // 讀取會議的權限判定（SEC-001）：管理員／moderator、會議建立者（以 sub 比對）、
@@ -317,21 +348,20 @@ export function canViewMeeting(
 }
 
 export async function getCheckInState(meetingId: number, email: string): Promise<boolean> {
-  const { rows } = await query<{ checked_in: boolean }>(
-    `SELECT checked_in FROM participants WHERE meeting_id = $1 AND email = LOWER($2)`,
-    [meetingId, email],
-  );
-  return rows[0]?.checked_in ?? false;
+  const row = await prisma.participants.findUnique({
+    where: { meeting_id_email: { meeting_id: meetingId, email: email.toLowerCase() } },
+    select: { checked_in: true },
+  });
+  return row?.checked_in ?? false;
 }
 
 export async function setCheckIn(meetingId: number, email: string): Promise<"ok" | "already" | "not-invited"> {
-  const { rowCount } = await query(
-    `UPDATE participants
-        SET checked_in = TRUE, checked_in_at = COALESCE(checked_in_at, now())
-      WHERE meeting_id = $1 AND email = LOWER($2) AND checked_in = FALSE`,
-    [meetingId, email],
-  );
-  if (rowCount > 0) return "ok";
+  // 只動「還沒簽到」的列，簽到時間就是這一刻（沒有簽退功能，checked_in=false 的列 checked_in_at 一定是空的）。
+  const { count } = await prisma.participants.updateMany({
+    where: { meeting_id: meetingId, email: email.toLowerCase(), checked_in: false },
+    data: { checked_in: true, checked_in_at: new Date() },
+  });
+  if (count > 0) return "ok";
   const invited = await isParticipant(meetingId, email);
   return invited ? "already" : "not-invited";
 }
@@ -340,19 +370,19 @@ export async function setCheckIn(meetingId: number, email: string): Promise<"ok"
 export async function rememberParticipantName(meetingId: number, email: string, name: string): Promise<void> {
   const n = name.trim();
   if (!n) return;
-  await query(
-    `UPDATE participants SET name = $3 WHERE meeting_id = $1 AND email = LOWER($2) AND name <> $3`,
-    [meetingId, email, n],
-  );
+  await prisma.participants.updateMany({
+    where: { meeting_id: meetingId, email: email.toLowerCase(), NOT: { name: n } },
+    data: { name: n },
+  });
 }
 
 export async function rememberEditorName(meetingId: number, email: string, name: string): Promise<void> {
   const n = name.trim();
   if (!n) return;
-  await query(
-    `UPDATE meeting_editors SET name = $3 WHERE meeting_id = $1 AND email = LOWER($2) AND name <> $3`,
-    [meetingId, email, n],
-  );
+  await prisma.meeting_editors.updateMany({
+    where: { meeting_id: meetingId, email: email.toLowerCase(), NOT: { name: n } },
+    data: { name: n },
+  });
 }
 
 export async function addNote(
@@ -360,27 +390,24 @@ export async function addNote(
   author: { sub?: string; email: string; name: string },
   body: string,
 ): Promise<void> {
-  await query(
-    `INSERT INTO meeting_notes (meeting_id, author_email, author_name, author_sub, body)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [meetingId, author.email, author.name, author.sub ?? null, body],
-  );
+  await prisma.meeting_notes.create({
+    data: { meeting_id: meetingId, author_email: author.email, author_name: author.name, author_sub: author.sub ?? null, body },
+  });
 }
 
 // 單則紀錄的擁有者資訊——刪除前用來判權限（不需要 body，別把 5000 字撈進來）。
 export async function getNoteOwner(
   noteId: number,
 ): Promise<{ id: number; meeting_id: number; author_sub: string | null; author_email: string } | null> {
-  const { rows } = await query<{ id: number; meeting_id: number; author_sub: string | null; author_email: string }>(
-    `SELECT id, meeting_id, author_sub, author_email FROM meeting_notes WHERE id = $1`,
-    [noteId],
-  );
-  return rows[0] ?? null;
+  return prisma.meeting_notes.findUnique({
+    where: { id: noteId },
+    select: { id: true, meeting_id: true, author_sub: true, author_email: true },
+  });
 }
 
 export async function deleteNote(noteId: number): Promise<boolean> {
-  const { rowCount } = await query(`DELETE FROM meeting_notes WHERE id = $1`, [noteId]);
-  return rowCount > 0;
+  const { count } = await prisma.meeting_notes.deleteMany({ where: { id: noteId } });
+  return count > 0;
 }
 
 // ---- 會議記錄權限（需求：Creator + Authorized Member 才可新增/編輯） ----
@@ -397,25 +424,19 @@ export async function canWriteNotes(
 
 // 是否為被明確授權的協作者。
 export async function isMeetingEditor(meetingId: number, email: string): Promise<boolean> {
-  const { rows } = await query<{ email: string }>(
-    `SELECT email FROM meeting_editors WHERE meeting_id = $1 AND email = $2`,
-    [meetingId, email.toLowerCase()],
-  );
-  return rows.length > 0;
+  const row = await prisma.meeting_editors.findUnique({
+    where: { meeting_id_email: { meeting_id: meetingId, email: email.toLowerCase() } },
+    select: { id: true },
+  });
+  return row !== null;
 }
 
 // 授權某人成為該會議的「可寫記錄」協作者（冪等）。
-export async function addMeetingEditor(
-  meetingId: number,
-  email: string,
-  grantedBy: string,
-): Promise<void> {
-  await query(
-    `INSERT INTO meeting_editors (meeting_id, email, granted_by)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (meeting_id, email) DO NOTHING`,
-    [meetingId, email.toLowerCase(), grantedBy],
-  );
+export async function addMeetingEditor(meetingId: number, email: string, grantedBy: string): Promise<void> {
+  await prisma.meeting_editors.createMany({
+    data: [{ meeting_id: meetingId, email: email.toLowerCase(), granted_by: grantedBy }],
+    skipDuplicates: true,
+  });
 }
 
 // ---- 會議 CRUD ----
@@ -430,46 +451,39 @@ export interface MeetingInput {
   description: string;
 }
 
-function splitStartsAt(startsAt: string): { meetingDate: string; startsAtIso: string } {
-  const meetingDate = startsAt.slice(0, 10);
-  const startsAtIso = parseTaipeiLocal(startsAt).toISOString();
-  return { meetingDate, startsAtIso };
+function splitStartsAt(startsAt: string): { meetingDate: Date; startsAtDate: Date } {
+  return { meetingDate: dateFromYmd(startsAt.slice(0, 10)), startsAtDate: parseTaipeiLocal(startsAt) };
 }
 
 export async function createMeeting(input: MeetingInput, owner: { sub: string; email: string; name: string }): Promise<number> {
-  const { meetingDate, startsAtIso } = splitStartsAt(input.startsAt);
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const meeting = await client.query<{ id: number }>(
-      `INSERT INTO meetings (title, department, meeting_date, starts_at, owner_sub, owner_email, owner_name,
-                             location, online_link, description, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'draft') RETURNING id`,
-      [input.title, input.department, meetingDate, startsAtIso, owner.sub, owner.email, owner.name,
-       input.location, input.onlineLink, input.description],
-    );
-    const meetingId = meeting.rows[0].id;
-
-    if (input.participantEmails.length > 0) {
-      const params: unknown[] = [];
-      const tuples = input.participantEmails
-        .map((email, i) => {
-          const base = i * 3;
-          params.push(meetingId, email, "");
-          return `($${base + 1}, $${base + 2}, $${base + 3})`;
-        })
-        .join(", ");
-      await client.query(`INSERT INTO participants (meeting_id, email, grade) VALUES ${tuples}`, params);
-    }
-
-    await client.query("COMMIT");
-    return meetingId;
-  } catch (err) {
-    await client.query("ROLLBACK");
-    throw err;
-  } finally {
-    client.release();
-  }
+  const { meetingDate, startsAtDate } = splitStartsAt(input.startsAt);
+  return prisma.$transaction(
+    async (tx) => {
+      const meeting = await tx.meetings.create({
+        data: {
+          title: input.title,
+          department: input.department,
+          meeting_date: meetingDate,
+          starts_at: startsAtDate,
+          owner_sub: owner.sub,
+          owner_email: owner.email,
+          owner_name: owner.name,
+          location: input.location,
+          online_link: input.onlineLink,
+          description: input.description,
+          status: "draft",
+        },
+        select: { id: true },
+      });
+      if (input.participantEmails.length > 0) {
+        await tx.participants.createMany({
+          data: input.participantEmails.map((email) => ({ meeting_id: meeting.id, email, grade: "" })),
+        });
+      }
+      return meeting.id;
+    },
+    { timeout: 10_000 },
+  );
 }
 
 // 只更新基本資料。名單刻意不在這裡動——以前這裡會把「不在表單裡的人」整批 DELETE，
@@ -484,27 +498,30 @@ export async function updateMeeting(
   if (!meeting) return false;
   if (!isAdmin && meeting.owner_sub !== ownerSub) return false;
 
-  const { meetingDate, startsAtIso } = splitStartsAt(input.startsAt);
-  await query(
-    `UPDATE meetings
-        SET title = $1, department = $2, meeting_date = $3, starts_at = $4,
-            location = $5, online_link = $6, description = $7
-      WHERE id = $8`,
-    [input.title, input.department, meetingDate, startsAtIso, input.location, input.onlineLink, input.description, id],
-  );
+  const { meetingDate, startsAtDate } = splitStartsAt(input.startsAt);
+  await prisma.meetings.update({
+    where: { id },
+    data: {
+      title: input.title,
+      department: input.department,
+      meeting_date: meetingDate,
+      starts_at: startsAtDate,
+      location: input.location,
+      online_link: input.onlineLink,
+      description: input.description,
+    },
+  });
   return true;
 }
 
 // 從名單移除一個人。只動 participants；他已投的票（ballots 以 email 記）不受影響。
 // DINT-001：已簽到者保留出席紀錄，不可移除。
 export async function removeParticipant(meetingId: number, email: string): Promise<"removed" | "not-found" | "checked-in"> {
-  const { rows } = await query<{ checked_in: boolean }>(
-    `SELECT checked_in FROM participants WHERE meeting_id = $1 AND email = $2`,
-    [meetingId, email.toLowerCase()],
-  );
-  if (rows.length === 0) return "not-found";
-  if (rows[0].checked_in) return "checked-in";
-  await query(`DELETE FROM participants WHERE meeting_id = $1 AND email = $2`, [meetingId, email.toLowerCase()]);
+  const key = { meeting_id: meetingId, email: email.toLowerCase() };
+  const row = await prisma.participants.findUnique({ where: { meeting_id_email: key }, select: { checked_in: true } });
+  if (!row) return "not-found";
+  if (row.checked_in) return "checked-in";
+  await prisma.participants.deleteMany({ where: key });
   return "removed";
 }
 
@@ -514,16 +531,13 @@ export async function deleteMeeting(id: number, ownerSub: string, isAdmin: boole
   if (!isAdmin && meeting.owner_sub !== ownerSub) return false;
 
   // 子表全部 ON DELETE CASCADE；只有附件的實體檔案要自己清（先撈路徑，DB 刪掉後就找不到了）。
-  const { rows: files } = await query<{ storage_path: string }>(
-    `SELECT a.storage_path
-       FROM agenda_attachments a
-       JOIN agenda_items ai ON ai.id = a.agenda_item_id
-      WHERE ai.meeting_id = $1`,
-    [id],
-  );
-  const { rowCount } = await query(`DELETE FROM meetings WHERE id = $1`, [id]);
-  if (rowCount > 0) await removeAttachmentFiles(files.map((f) => f.storage_path));
-  return rowCount > 0;
+  const files = await prisma.agenda_attachments.findMany({
+    where: { agenda_items: { meeting_id: id } },
+    select: { storage_path: true },
+  });
+  const { count } = await prisma.meetings.deleteMany({ where: { id } });
+  if (count > 0) await removeAttachmentFiles(files.map((f) => f.storage_path));
+  return count > 0;
 }
 
 // 盡力刪檔：DB 已經刪成功，檔案刪不掉只留 log，不對使用者報錯。
@@ -542,9 +556,10 @@ export interface MeetingEditor {
 
 // 該會議的協作者名單（工作台 ④ 顯示用）。
 export async function listMeetingEditors(meetingId: number): Promise<MeetingEditor[]> {
-  const { rows } = await query<MeetingEditor>(
-    `SELECT email, name, granted_by FROM meeting_editors WHERE meeting_id = $1 ORDER BY email`,
-    [meetingId],
-  );
+  const rows = await prisma.meeting_editors.findMany({
+    where: { meeting_id: meetingId },
+    select: { email: true, name: true, granted_by: true },
+    orderBy: { email: "asc" },
+  });
   return fillNames(rows);
 }

@@ -8,8 +8,8 @@ export const runtime = "nodejs";
 export async function GET() {
   const startedAt = Date.now();
   try {
-    const { pool } = await import("@/lib/db");
-    await pool.query("SELECT 1");
+    const { prisma } = await import("@/lib/db");
+    await prisma.$queryRaw`SELECT 1`;
     return NextResponse.json({ status: "ok", db: "ok", latency_ms: Date.now() - startedAt });
   } catch (err) {
     return NextResponse.json(

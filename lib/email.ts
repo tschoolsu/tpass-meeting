@@ -1,5 +1,5 @@
 import "server-only";
-import { query } from "@/lib/db";
+import { prisma } from "@/lib/db";
 import { authConfig } from "@/config/auth";
 import { serviceConfig } from "@/config/service";
 
@@ -10,11 +10,10 @@ export const RETRY_DELAY_MS = 60_000; // 失敗後 1 分鐘再試
 export async function enqueueMeetingNotification(meetingId: number): Promise<void> {
   if (!serviceConfig.smtp) return; // 未設定 SMTP 則略過（靜默不中斷建置）
 
-  const meeting = await query<{ title: string; starts_at: string; location: string; online_link: string }>(
-    `SELECT title, starts_at, location, online_link FROM meetings WHERE id = $1`,
-    [meetingId],
-  );
-  const m = meeting.rows[0];
+  const m = await prisma.meetings.findUnique({
+    where: { id: meetingId },
+    select: { title: true, starts_at: true, location: true, online_link: true },
+  });
   if (!m) return;
 
   const meetingUrl = `${authConfig.selfUrl}/read?id=${meetingId}`;
@@ -22,7 +21,7 @@ export async function enqueueMeetingNotification(meetingId: number): Promise<voi
   const lines = [
     `你受邀參加會議「${m.title}」。`,
     ``,
-    `時間：${new Date(m.starts_at).toLocaleString("zh-TW", { timeZone: "Asia/Taipei" })}`,
+    `時間：${m.starts_at.toLocaleString("zh-TW", { timeZone: "Asia/Taipei" })}`,
     m.location ? `地點：${m.location}` : "",
     m.online_link ? `線上連結：${m.online_link}` : "",
     ``,
@@ -30,27 +29,15 @@ export async function enqueueMeetingNotification(meetingId: number): Promise<voi
   ];
   const body = lines.filter(Boolean).join("\n");
 
-  const { rows } = await query<{ email: string }>(
-    `SELECT email FROM participants WHERE meeting_id = $1`,
-    [meetingId],
-  );
+  const rows = await prisma.participants.findMany({ where: { meeting_id: meetingId }, select: { email: true } });
   if (rows.length === 0) return;
 
-  // H-2：single multi-row INSERT，不再逐筆（500 人就 500 次 RTT）。
-  const params: unknown[] = [];
-  const tuples = rows
-    .map((p, i) => {
-      const base = i * 4;
-      params.push(meetingId, p.email, subject, body);
-      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, 'pending')`;
-    })
-    .join(", ");
-  await query(
-    `INSERT INTO notification_queue (meeting_id, email, subject, body, status)
-     VALUES ${tuples}
-     ON CONFLICT DO NOTHING`,
-    params,
-  );
+  // H-2：一次 multi-row INSERT，不再逐筆（500 人就 500 次 RTT）。
+  // LOGIC-001：UNIQUE(meeting_id, email) + skipDuplicates，重複發布不會重複寄。
+  await prisma.notification_queue.createMany({
+    data: rows.map((p) => ({ meeting_id: meetingId, email: p.email, subject, body, status: "pending" })),
+    skipDuplicates: true,
+  });
 }
 
 // SMTP 派送併發上限：避免一次把 SMTP server 打爆，也不會逐封串列等。
@@ -66,13 +53,12 @@ export async function dispatchPendingEmails(): Promise<{ sent: number }> {
   const nodemailer = await import("nodemailer").catch(() => null);
   if (!nodemailer) return { sent: 0 }; // nodemailer 未安裝則略過
 
-  const { rows } = await query<{ id: number; email: string; subject: string; body: string }>(
-    `SELECT id, email, subject, body
-       FROM notification_queue
-      WHERE status = 'pending' AND next_attempt_at <= now()
-      ORDER BY id
-      LIMIT 50`,
-  );
+  const rows = await prisma.notification_queue.findMany({
+    where: { status: "pending", next_attempt_at: { lte: new Date() } },
+    select: { id: true, email: true, subject: true, body: true, attempts: true },
+    orderBy: { id: "asc" },
+    take: 50,
+  });
   if (rows.length === 0) return { sent: 0 };
 
   const transporter = nodemailer.createTransport({
@@ -98,22 +84,22 @@ export async function dispatchPendingEmails(): Promise<{ sent: number }> {
           subject: row.subject,
           text: row.body,
         });
-        await query(
-          `UPDATE notification_queue
-              SET status = 'sent', sent_at = now(), attempts = attempts + 1
-            WHERE id = $1`,
-          [row.id],
-        );
+        await prisma.notification_queue.update({
+          where: { id: row.id },
+          data: { status: "sent", sent_at: new Date(), attempts: { increment: 1 } },
+        });
         sent++;
       } catch {
-        await query(
-          `UPDATE notification_queue
-              SET attempts = attempts + 1,
-                  status = CASE WHEN attempts + 1 >= $2 THEN 'failed' ELSE 'pending' END,
-                  next_attempt_at = now() + make_interval(secs => $3)
-            WHERE id = $1`,
-          [row.id, EMAIL_MAX_ATTEMPTS, RETRY_DELAY_MS / 1000],
-        );
+        // 第 N 次失敗就標 failed；否則 1 分鐘後再試。attempts 以剛讀到的值算（同一時間只有這個 worker 在動這列）。
+        const attempts = row.attempts + 1;
+        await prisma.notification_queue.update({
+          where: { id: row.id },
+          data: {
+            attempts,
+            status: attempts >= EMAIL_MAX_ATTEMPTS ? "failed" : "pending",
+            next_attempt_at: new Date(Date.now() + RETRY_DELAY_MS),
+          },
+        });
       }
     }
   }
@@ -122,25 +108,20 @@ export async function dispatchPendingEmails(): Promise<{ sent: number }> {
   return { sent };
 }
 
-export async function notificationStats(meetingId: number) {
-  const { rows } = await query<{ status: string; cnt: number }>(
-    `SELECT status, COUNT(*)::int AS cnt
-       FROM notification_queue
-      WHERE meeting_id = $1
-      GROUP BY status`,
-    [meetingId],
-  );
-  return rows;
+export async function notificationStats(meetingId: number): Promise<{ status: string; cnt: number }[]> {
+  const rows = await prisma.notification_queue.groupBy({
+    by: ["status"],
+    where: { meeting_id: meetingId },
+    _count: { _all: true },
+  });
+  return rows.map((r) => ({ status: r.status, cnt: r._count._all }));
 }
 
 // M-5：清理過期的 sent / failed 佇列紀錄，避免 notification_queue 無限增長。
 // 由背景 worker 每日呼叫一次。
 export async function purgeNotificationQueue(keepMs = 7 * 24 * 60 * 60 * 1000): Promise<number> {
-  const { rowCount } = await query(
-    `DELETE FROM notification_queue
-      WHERE status IN ('sent', 'failed')
-        AND created_at < now() - make_interval(secs => $1)`,
-    [keepMs / 1000],
-  );
-  return rowCount ?? 0;
+  const { count } = await prisma.notification_queue.deleteMany({
+    where: { status: { in: ["sent", "failed"] }, created_at: { lt: new Date(Date.now() - keepMs) } },
+  });
+  return count;
 }

@@ -1,5 +1,6 @@
 import "server-only";
-import { pool, query } from "@/lib/db";
+import { prisma } from "@/lib/db";
+import { dateFromYmd, dateOnly } from "@/lib/meetings";
 import { toDatetimeLocal } from "@/lib/time";
 import { ValidationError } from "@/lib/validation";
 
@@ -70,54 +71,29 @@ export interface BackupData {
   meetings: BackupMeeting[];
 }
 
-const iso = (v: unknown): string =>
-  v instanceof Date ? v.toISOString() : new Date(String(v)).toISOString();
+const iso = (d: Date): string => d.toISOString();
 
 export async function exportAll(): Promise<BackupData> {
-  const [mRows, pRows, aRows, mRows2, atRows, bRows, nRows] = await Promise.all([
-    query<{
-      id: number; title: string; department: string; meeting_date: string;
-      starts_at: Date; owner_sub: string; owner_email: string; owner_name: string;
-      location: string; online_link: string; description: string; status: string;
-    }>(
-      `SELECT id, title, department, meeting_date::text AS meeting_date, starts_at,
-              owner_sub, owner_email, owner_name, location, online_link, description, status
-         FROM meetings ORDER BY id`,
-    ),
-    query<{ meeting_id: number; email: string; name: string; grade: string; checked_in: boolean; checked_in_at: Date | null }>(
-      `SELECT meeting_id, email, name, grade, checked_in, checked_in_at FROM participants ORDER BY id`,
-    ),
-    query<{ id: number; meeting_id: number; position: number; title: string; description: string }>(
-      `SELECT id, meeting_id, position, title, description FROM agenda_items ORDER BY id`,
-    ),
-    query<{
-      id: number; agenda_item_id: number; position: number; title: string; description: string; threshold: string; status: string;
-      opened_at: Date | null; closed_at: Date | null; present_count: number | null; expected_count: number | null; result: string | null;
-    }>(
-      `SELECT id, agenda_item_id, position, title, description, threshold, status,
-              opened_at, closed_at, present_count, expected_count, result
-         FROM motions ORDER BY id`,
-    ),
-    query<{ agenda_item_id: number; filename: string; mime: string; size: number; storage_path: string }>(
-      `SELECT agenda_item_id, filename, mime, size, storage_path FROM agenda_attachments ORDER BY id`,
-    ),
-    query<{ motion_id: number; voter_email: string; voter_name: string; vote_status: string; created_at: Date }>(
-      `SELECT motion_id, voter_email, voter_name, vote_status, created_at FROM ballots ORDER BY id`,
-    ),
-    query<{ meeting_id: number; author_email: string; author_name: string; body: string; created_at: Date }>(
-      `SELECT meeting_id, author_email, author_name, body, created_at FROM meeting_notes ORDER BY id`,
-    ),
+  const byId = { orderBy: { id: "asc" } } as const;
+  const [mRows, pRows, aRows, moRows, atRows, bRows, nRows] = await Promise.all([
+    prisma.meetings.findMany(byId),
+    prisma.participants.findMany(byId),
+    prisma.agenda_items.findMany(byId),
+    prisma.motions.findMany(byId),
+    prisma.agenda_attachments.findMany(byId),
+    prisma.ballots.findMany(byId),
+    prisma.meeting_notes.findMany(byId),
   ]);
 
   const participantsByMeeting = new Map<number, BackupParticipant[]>();
-  for (const p of pRows.rows) {
+  for (const p of pRows) {
     const list = participantsByMeeting.get(p.meeting_id) ?? [];
     list.push({ email: p.email, name: p.name, grade: p.grade, checked_in: p.checked_in, checked_in_at: p.checked_in_at ? iso(p.checked_in_at) : null });
     participantsByMeeting.set(p.meeting_id, list);
   }
 
   const motionsByAgenda = new Map<number, BackupMotion[]>();
-  for (const m2 of mRows2.rows) {
+  for (const m2 of moRows) {
     const list = motionsByAgenda.get(m2.agenda_item_id) ?? [];
     list.push({
       title: m2.title, description: m2.description, threshold: m2.threshold, status: m2.status, position: m2.position,
@@ -129,9 +105,9 @@ export async function exportAll(): Promise<BackupData> {
     motionsByAgenda.set(m2.agenda_item_id, list);
   }
   const motionIdToKey = new Map<number, { agenda_item_id: number; position: number }>();
-  for (const m2 of mRows2.rows) motionIdToKey.set(m2.id, { agenda_item_id: m2.agenda_item_id, position: m2.position });
+  for (const m2 of moRows) motionIdToKey.set(m2.id, { agenda_item_id: m2.agenda_item_id, position: m2.position });
 
-  for (const b of bRows.rows) {
+  for (const b of bRows) {
     const key = motionIdToKey.get(b.motion_id);
     if (!key) continue;
     const list = motionsByAgenda.get(key.agenda_item_id);
@@ -140,30 +116,30 @@ export async function exportAll(): Promise<BackupData> {
   }
 
   const attachmentsByAgenda = new Map<number, BackupAttachment[]>();
-  for (const a of atRows.rows) {
+  for (const a of atRows) {
     const list = attachmentsByAgenda.get(a.agenda_item_id) ?? [];
     list.push({ filename: a.filename, mime: a.mime, size: Number(a.size), storage_path: a.storage_path });
     attachmentsByAgenda.set(a.agenda_item_id, list);
   }
 
   const agendaByMeeting = new Map<number, BackupAgendaItem[]>();
-  for (const a of aRows.rows) {
+  for (const a of aRows) {
     const list = agendaByMeeting.get(a.meeting_id) ?? [];
     list.push({ title: a.title, description: a.description, position: a.position, motions: motionsByAgenda.get(a.id) ?? [], attachments: attachmentsByAgenda.get(a.id) ?? [] });
     agendaByMeeting.set(a.meeting_id, list);
   }
 
   const notesByMeeting = new Map<number, BackupMeeting["notes"]>();
-  for (const n of nRows.rows) {
+  for (const n of nRows) {
     const list = notesByMeeting.get(n.meeting_id) ?? [];
     list.push({ author_email: n.author_email, author_name: n.author_name, body: n.body, created_at: iso(n.created_at) });
     notesByMeeting.set(n.meeting_id, list);
   }
 
-  const meetings: BackupMeeting[] = mRows.rows.map((m) => ({
+  const meetings: BackupMeeting[] = mRows.map((m) => ({
     title: m.title,
     department: m.department,
-    meeting_date: m.meeting_date,
+    meeting_date: dateOnly(m.meeting_date),
     starts_at: iso(m.starts_at),
     owner_sub: m.owner_sub,
     owner_email: m.owner_email,
@@ -202,108 +178,127 @@ export async function importAll(data: unknown): Promise<number> {
   const meetings = (data as BackupData).meetings;
   if (!Array.isArray(meetings)) throw new ValidationError("匯入檔案格式不正確（缺少 meetings）");
 
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query(
-      "TRUNCATE ballots, agenda_attachments, motions, agenda_items, meeting_notes, participants, meetings RESTART IDENTITY CASCADE",
-    );
-
-    for (const raw of meetings) {
-      if (typeof raw !== "object" || raw === null) throw new ValidationError("匯入檔案格式不正確");
-      const m = raw as BackupMeeting;
-      const title = requireString(m.title, "title");
-      const startsAt = requireString(m.starts_at, "starts_at");
-      const startsAtDate = new Date(startsAt);
-      if (Number.isNaN(startsAtDate.getTime())) throw new ValidationError("starts_at 格式不正確");
-      const meetingDate = toDatetimeLocal(startsAtDate).slice(0, 10);
-
-      const meeting = await client.query<{ id: number }>(
-        `INSERT INTO meetings (title, department, meeting_date, starts_at, owner_sub, owner_email, owner_name,
-                               location, online_link, description, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
-        [
-          title,
-          requireString(m.department, "department"),
-          meetingDate,
-          startsAtDate.toISOString(),
-          requireString(m.owner_sub, "owner_sub"),
-          typeof m.owner_email === "string" ? m.owner_email : "",
-          requireString(m.owner_name, "owner_name"),
-          m.location ?? "",
-          m.online_link ?? "",
-          m.description ?? "",
-          m.status ?? "draft",
-        ],
+  // 整包一個交易：中途任何一筆格式錯就整個回滾，不會留下半份資料。逾時給 60 秒（幾百場會議的量）。
+  await prisma.$transaction(
+    async (tx) => {
+      // 固定字串、沒有參數，Unsafe 只是因為 TRUNCATE 沒有 Prisma API。
+      await tx.$executeRawUnsafe(
+        "TRUNCATE ballots, agenda_attachments, motions, agenda_items, meeting_notes, participants, meetings RESTART IDENTITY CASCADE",
       );
-      const meetingId = meeting.rows[0].id;
 
-      for (const p of m.participants ?? []) {
-        await client.query(
-          `INSERT INTO participants (meeting_id, email, name, grade, checked_in, checked_in_at)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [meetingId, requireString(p.email, "participant.email"), p.name ?? "", p.grade ?? "",
-           p.checked_in === true, p.checked_in_at ? new Date(p.checked_in_at).toISOString() : null],
-        );
-      }
+      for (const raw of meetings) {
+        if (typeof raw !== "object" || raw === null) throw new ValidationError("匯入檔案格式不正確");
+        const m = raw as BackupMeeting;
+        const title = requireString(m.title, "title");
+        const startsAt = requireString(m.starts_at, "starts_at");
+        const startsAtDate = new Date(startsAt);
+        if (Number.isNaN(startsAtDate.getTime())) throw new ValidationError("starts_at 格式不正確");
+        const meetingDate = toDatetimeLocal(startsAtDate).slice(0, 10);
 
-      for (const ai of m.agenda ?? []) {
-        const agenda = await client.query<{ id: number }>(
-          `INSERT INTO agenda_items (meeting_id, position, title, description)
-           VALUES ($1, $2, $3, $4) RETURNING id`,
-          [meetingId, Number(ai.position) || 0, requireString(ai.title, "agenda.title"), ai.description ?? ""],
-        );
-        const agendaId = agenda.rows[0].id;
+        const meeting = await tx.meetings.create({
+          data: {
+            title,
+            department: requireString(m.department, "department"),
+            meeting_date: dateFromYmd(meetingDate),
+            starts_at: startsAtDate,
+            owner_sub: requireString(m.owner_sub, "owner_sub"),
+            owner_email: typeof m.owner_email === "string" ? m.owner_email : "",
+            owner_name: requireString(m.owner_name, "owner_name"),
+            location: m.location ?? "",
+            online_link: m.online_link ?? "",
+            description: m.description ?? "",
+            status: m.status ?? "draft",
+          },
+          select: { id: true },
+        });
+        const meetingId = meeting.id;
 
-        for (const att of ai.attachments ?? []) {
-          await client.query(
-            `INSERT INTO agenda_attachments (agenda_item_id, filename, mime, size, storage_path)
-             VALUES ($1, $2, $3, $4, $5)`,
-            [agendaId, requireString(att.filename, "attachment.filename"), att.mime ?? "",
-             Number(att.size) || 0, requireStoragePath(att.storage_path, "attachment.storage_path")],
-          );
+        const participants = m.participants ?? [];
+        if (participants.length > 0) {
+          await tx.participants.createMany({
+            data: participants.map((p) => ({
+              meeting_id: meetingId,
+              email: requireString(p.email, "participant.email"),
+              name: p.name ?? "",
+              grade: p.grade ?? "",
+              checked_in: p.checked_in === true,
+              checked_in_at: p.checked_in_at ? new Date(p.checked_in_at) : null,
+            })),
+          });
         }
 
-        for (const mo of ai.motions ?? []) {
-          const motion = await client.query<{ id: number }>(
-            `INSERT INTO motions (agenda_item_id, title, description, threshold, status, position,
-                                  opened_at, closed_at, present_count, expected_count, result)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
-            [agendaId, requireString(mo.title, "motion.title"), mo.description ?? "",
-             mo.threshold ?? "1/2", mo.status ?? "", Number(mo.position) || 0,
-             mo.opened_at ? new Date(mo.opened_at).toISOString() : null,
-             mo.closed_at ? new Date(mo.closed_at).toISOString() : null,
-             mo.present_count ?? null, mo.expected_count ?? null,
-             mo.result === "passed" || mo.result === "rejected" || mo.result === "tie" ? mo.result : null],
-          );
-          const motionId = motion.rows[0].id;
-          for (const b of mo.ballots ?? []) {
-            await client.query(
-              `INSERT INTO ballots (motion_id, voter_email, voter_name, vote_status, created_at) VALUES ($1, $2, $3, $4, $5)`,
-              [motionId, requireString(b.voter_email, "ballot.voter_email"), b.voter_name ?? "",
-               b.vote_status === "against" || b.vote_status === "abstain" ? b.vote_status : "agree",
-               new Date(b.created_at).toISOString()],
-            );
+        for (const ai of m.agenda ?? []) {
+          const agenda = await tx.agenda_items.create({
+            data: {
+              meeting_id: meetingId,
+              position: Number(ai.position) || 0,
+              title: requireString(ai.title, "agenda.title"),
+              description: ai.description ?? "",
+            },
+            select: { id: true },
+          });
+          const agendaId = agenda.id;
+
+          const attachments = ai.attachments ?? [];
+          if (attachments.length > 0) {
+            await tx.agenda_attachments.createMany({
+              data: attachments.map((att) => ({
+                agenda_item_id: agendaId,
+                filename: requireString(att.filename, "attachment.filename"),
+                mime: att.mime ?? "",
+                size: Number(att.size) || 0,
+                storage_path: requireStoragePath(att.storage_path, "attachment.storage_path"),
+              })),
+            });
+          }
+
+          for (const mo of ai.motions ?? []) {
+            const motion = await tx.motions.create({
+              data: {
+                agenda_item_id: agendaId,
+                title: requireString(mo.title, "motion.title"),
+                description: mo.description ?? "",
+                threshold: mo.threshold ?? "1/2",
+                status: mo.status ?? "",
+                position: Number(mo.position) || 0,
+                opened_at: mo.opened_at ? new Date(mo.opened_at) : null,
+                closed_at: mo.closed_at ? new Date(mo.closed_at) : null,
+                present_count: mo.present_count ?? null,
+                expected_count: mo.expected_count ?? null,
+                result: mo.result === "passed" || mo.result === "rejected" || mo.result === "tie" ? mo.result : null,
+              },
+              select: { id: true },
+            });
+            const ballots = mo.ballots ?? [];
+            if (ballots.length > 0) {
+              await tx.ballots.createMany({
+                data: ballots.map((b) => ({
+                  motion_id: motion.id,
+                  voter_email: requireString(b.voter_email, "ballot.voter_email"),
+                  voter_name: b.voter_name ?? "",
+                  vote_status: b.vote_status === "against" || b.vote_status === "abstain" ? b.vote_status : "agree",
+                  created_at: new Date(b.created_at),
+                })),
+              });
+            }
           }
         }
-      }
 
-      for (const n of m.notes ?? []) {
-        await client.query(
-          `INSERT INTO meeting_notes (meeting_id, author_email, author_name, body, created_at)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [meetingId, requireString(n.author_email, "note.author_email"), requireString(n.author_name, "note.author_name"),
-           requireString(n.body, "note.body"), new Date(n.created_at).toISOString()],
-        );
+        const notes = m.notes ?? [];
+        if (notes.length > 0) {
+          await tx.meeting_notes.createMany({
+            data: notes.map((n) => ({
+              meeting_id: meetingId,
+              author_email: requireString(n.author_email, "note.author_email"),
+              author_name: requireString(n.author_name, "note.author_name"),
+              body: requireString(n.body, "note.body"),
+              created_at: new Date(n.created_at),
+            })),
+          });
+        }
       }
-    }
-
-    await client.query("COMMIT");
-    return meetings.length;
-  } catch (err) {
-    await client.query("ROLLBACK");
-    throw err;
-  } finally {
-    client.release();
-  }
+    },
+    { timeout: 60_000, maxWait: 10_000 },
+  );
+  return meetings.length;
 }

@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
-import { query } from "@/lib/db";
+import { prisma } from "@/lib/db";
 
 export interface ApiKeyRow {
   id: number;
@@ -20,25 +20,29 @@ export function generateApiKey(): string {
 // 建立後只回傳一次明碼，資料庫只存雜湊。
 export async function createApiKey(label: string): Promise<{ plaintext: string; id: number }> {
   const plaintext = generateApiKey();
-  const { rows } = await query<{ id: number }>(
-    `INSERT INTO api_keys (label, key_hash) VALUES ($1, $2) RETURNING id`,
-    [label, hashKey(plaintext)],
-  );
-  return { plaintext, id: rows[0].id };
+  const row = await prisma.api_keys.create({
+    data: { label, key_hash: hashKey(plaintext) },
+    select: { id: true },
+  });
+  return { plaintext, id: row.id };
 }
 
 export async function listApiKeys(): Promise<ApiKeyRow[]> {
-  const { rows } = await query<ApiKeyRow>(
-    `SELECT id, label, created_at, last_used_at
-       FROM api_keys
-      ORDER BY created_at DESC`,
-  );
-  return rows;
+  const rows = await prisma.api_keys.findMany({
+    select: { id: true, label: true, created_at: true, last_used_at: true },
+    orderBy: { created_at: "desc" },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    label: r.label,
+    created_at: r.created_at.toISOString(),
+    last_used_at: r.last_used_at?.toISOString() ?? null,
+  }));
 }
 
 // 直接刪除金鑰（不再保留已撤銷紀錄）。
 export async function deleteApiKey(id: number): Promise<void> {
-  await query(`DELETE FROM api_keys WHERE id = $1`, [id]);
+  await prisma.api_keys.deleteMany({ where: { id } });
 }
 
 // 驗證並節流更新 last_used_at；回傳該金鑰身分供建立者標記。
@@ -46,19 +50,16 @@ export async function deleteApiKey(id: number): Promise<void> {
 // 避免每個 API request 都對同一列做 UPDATE 造成 row lock 競爭與 write IO 放大。
 export async function authenticateApiKey(key: string): Promise<{ id: number; label: string } | null> {
   const hash = hashKey(key);
-  const { rows } = await query<{ id: number; label: string }>(
-    `SELECT id, label FROM api_keys WHERE key_hash = $1`,
-    [hash],
-  );
-  if (rows.length === 0) return null;
-  await query(
-    `UPDATE api_keys
-        SET last_used_at = now()
-      WHERE key_hash = $1
-        AND (last_used_at IS NULL OR last_used_at < now() - interval '5 minutes')`,
-    [hash],
-  );
-  return rows[0];
+  const row = await prisma.api_keys.findUnique({ where: { key_hash: hash }, select: { id: true, label: true } });
+  if (!row) return null;
+  await prisma.api_keys.updateMany({
+    where: {
+      key_hash: hash,
+      OR: [{ last_used_at: null }, { last_used_at: { lt: new Date(Date.now() - 5 * 60_000) } }],
+    },
+    data: { last_used_at: new Date() },
+  });
+  return row;
 }
 
 // 從 Authorization: Bearer 或 ?apikey= 取出金鑰。
