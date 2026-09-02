@@ -23,6 +23,8 @@ export function MotionVote({
 }) {
   const { data } = useLiveState(meetingId);
   const [answered, setAnswered] = useState<"agree" | "against" | null>(initialAnswered);
+  // 兩階段：先選（可改），按「送出」才真的寫入——手機上兩顆大鈕並排，一階段太容易誤觸。
+  const [picked, setPicked] = useState<"agree" | "against" | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,8 +37,9 @@ export function MotionVote({
   // 快照說我投過就算投過（例如在別的裝置投的）；本地 answered 只是送出當下的即時回饋。
   const answeredValue = answered ?? (data?.me.voted_motion_ids.includes(motionId) ? "agree" : null);
 
-  async function cast(status: "agree" | "against") {
-    if (!isOpen || busy || answeredValue) return;
+  async function submit() {
+    if (!isOpen || busy || answeredValue || !picked) return;
+    const status = picked;
     setBusy(true);
     setError(null);
     const res = await voteAction(motionId, meetingId, status);
@@ -47,6 +50,13 @@ export function MotionVote({
     }
     setAnswered(status);
   }
+
+  const optionClass = (selected: boolean, tone: string) =>
+    `rounded-2xl border-2 border-foreground px-4 py-6 text-lg font-extrabold transition-all duration-200 disabled:opacity-40 ${
+      selected
+        ? `${tone} text-primary-foreground shadow-[6px_6px_0_0_var(--color-foreground)] -translate-y-1`
+        : "bg-background text-foreground shadow-[4px_4px_0_0_var(--color-foreground)] hover:-translate-y-1 hover:shadow-[6px_6px_0_0_var(--color-foreground)] active:translate-y-0"
+    }`;
 
   return (
     <Card className="mx-auto max-w-2xl text-center">
@@ -78,23 +88,38 @@ export function MotionVote({
           你已完成這項表決，無法更改。
         </p>
       ) : (
-        <div className="mt-8 grid grid-cols-2 gap-3">
+        <div className="mt-8">
+          <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label="表決選項">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={picked === "agree"}
+              onClick={() => setPicked("agree")}
+              disabled={busy}
+              className={optionClass(picked === "agree", "bg-primary")}
+            >
+              同意
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={picked === "against"}
+              onClick={() => setPicked("against")}
+              disabled={busy}
+              className={optionClass(picked === "against", "bg-destructive")}
+            >
+              不同意
+            </button>
+          </div>
           <button
             type="button"
-            onClick={() => cast("agree")}
-            disabled={busy}
-            className="rounded-2xl border-2 border-foreground bg-primary px-4 py-6 text-lg font-extrabold text-primary-foreground shadow-[4px_4px_0_0_var(--color-foreground)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[6px_6px_0_0_var(--color-foreground)] active:translate-y-0 disabled:opacity-40"
+            onClick={submit}
+            disabled={busy || !picked}
+            className="mt-4 w-full rounded-2xl border-2 border-foreground bg-foreground px-4 py-4 text-base font-extrabold text-background shadow-[4px_4px_0_0_var(--color-primary)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[6px_6px_0_0_var(--color-primary)] active:translate-y-0 disabled:opacity-40 disabled:hover:translate-y-0 disabled:hover:shadow-[4px_4px_0_0_var(--color-primary)]"
           >
-            同意
+            {picked ? `送出：${picked === "agree" ? "同意" : "不同意"}` : "請先選擇同意或不同意"}
           </button>
-          <button
-            type="button"
-            onClick={() => cast("against")}
-            disabled={busy}
-            className="rounded-2xl border-2 border-foreground bg-destructive px-4 py-6 text-lg font-extrabold text-primary-foreground shadow-[4px_4px_0_0_var(--color-foreground)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[6px_6px_0_0_var(--color-foreground)] active:translate-y-0 disabled:opacity-40"
-          >
-            不同意
-          </button>
+          <p className="mt-2 text-xs font-medium text-muted-foreground">送出後不能更改，送出前可以重選。</p>
         </div>
       )}
 
