@@ -1,8 +1,10 @@
+import QRCode from "qrcode";
 import { notFound } from "next/navigation";
 import { isAdmin, isModerator, requireAccess } from "@/lib/auth";
 import { canViewMeeting, getMeeting, isParticipant } from "@/lib/meetings";
 import { LiveDisplay } from "@/components/live-display";
 import { meetingMetadata } from "@/lib/page-title";
+import { authConfig } from "@/config/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -31,5 +33,17 @@ export default async function DisplayPage({
   }
   const canControl = isAdmin(session) || meeting.owner_sub === session.sub;
 
-  return <LiveDisplay meetingId={id} canControl={canControl} />;
+  // 簽到階段投出來的 QR：掃進去就是這場會議的簽到台（沒登入的人由 SSO 接手）。
+  // 在 server 端一次產好 SVG，投屏端不必再載任何前端套件。
+  const checkinUrl = `${authConfig.selfUrl}/checkin?id=${id}`;
+  const checkinQrSvg = await QRCode.toString(checkinUrl, { type: "svg", margin: 1 });
+
+  return (
+    <LiveDisplay
+      meetingId={id}
+      canControl={canControl}
+      checkinUrl={checkinUrl}
+      checkinQrSvg={checkinQrSvg}
+    />
+  );
 }

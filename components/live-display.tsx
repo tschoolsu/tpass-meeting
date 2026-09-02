@@ -41,7 +41,19 @@ function useSettledBallots(meetingId: number, current: LiveAgendaItem | null): R
 
 // 簽到階段（current = null，會議的預設起點）：上半全員名單、未到排前面、可捲動；下半實到／應到。
 // 目的是一眼看出誰還沒到，不是把所有人塞進一屏。
-function CheckinStage({ participants, checked, total }: { participants: LiveParticipant[]; checked: number; total: number }) {
+function CheckinStage({
+  participants,
+  checked,
+  total,
+  checkinUrl,
+  checkinQrSvg,
+}: {
+  participants: LiveParticipant[];
+  checked: number;
+  total: number;
+  checkinUrl: string;
+  checkinQrSvg: string;
+}) {
   const sorted = [...participants].sort((a, b) => {
     if (a.checked_in !== b.checked_in) return a.checked_in ? 1 : -1;
     return displayName(a).localeCompare(displayName(b), "zh-Hant");
@@ -49,6 +61,29 @@ function CheckinStage({ participants, checked, total }: { participants: LivePart
   const missing = total - checked;
   return (
     <section className="flex flex-col gap-8">
+      {/* 簽到 QR 放最上面、佔一整條：投影出去就是「拿手機掃這個」的唯一指令。
+          議程一開始（current !== null）這整塊就消失，不會佔走表決畫面。 */}
+      <div className="grid items-center gap-8 rounded-2xl border-4 border-foreground bg-accent p-8 shadow-[12px_12px_0_0_var(--color-foreground)] sm:grid-cols-[1fr_auto]">
+        <div className="text-center sm:text-left">
+          <p className="font-mono text-xl font-extrabold text-primary-foreground/80">CHECK-IN</p>
+          <h2 className="mt-1 text-5xl font-extrabold leading-tight text-primary-foreground sm:text-6xl">
+            拿出手機，掃碼簽到
+          </h2>
+          {missing > 0 ? (
+            <p className="mt-4 text-3xl font-extrabold text-primary-foreground">
+              還有 <span className="font-mono">{missing}</span> 人沒簽到，請盡快完成
+            </p>
+          ) : (
+            <p className="mt-4 text-3xl font-extrabold text-primary-foreground">全員到齊，準備開始</p>
+          )}
+          <p className="mt-4 break-all font-mono text-lg font-bold text-primary-foreground/80">{checkinUrl}</p>
+        </div>
+        <div
+          className="mx-auto w-[clamp(200px,24vw,320px)] rounded-2xl border-4 border-foreground bg-card p-3 shadow-[8px_8px_0_0_var(--color-foreground)] [&>svg]:block [&>svg]:h-auto [&>svg]:w-full"
+          dangerouslySetInnerHTML={{ __html: checkinQrSvg }}
+        />
+      </div>
+
       {/* 實到／應到放名單上面：名單一長被捲掉，人數還看得到 */}
       <div className="grid grid-cols-2 gap-6">
         <div className="rounded-2xl border-4 border-foreground bg-card p-6 text-center shadow-[8px_8px_0_0_var(--color-foreground)]">
@@ -67,7 +102,7 @@ function CheckinStage({ participants, checked, total }: { participants: LivePart
             未到 <span className={missing > 0 ? "text-destructive" : "text-tone-green-text"}>{missing}</span> 人
           </p>
         </div>
-        <ul className="mt-5 grid max-h-[60vh] grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3 lg:grid-cols-4">
+        <ul className="mt-5 grid max-h-[42vh] grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3 lg:grid-cols-4">
           {sorted.map((p) => (
             <li
               key={p.email}
@@ -96,7 +131,17 @@ function CheckinStage({ participants, checked, total }: { participants: LivePart
   );
 }
 
-export function LiveDisplay({ meetingId, canControl = false }: { meetingId: number; canControl?: boolean }) {
+export function LiveDisplay({
+  meetingId,
+  canControl = false,
+  checkinUrl,
+  checkinQrSvg,
+}: {
+  meetingId: number;
+  canControl?: boolean;
+  checkinUrl: string;
+  checkinQrSvg: string;
+}) {
   const { data, error } = useLiveState(meetingId);
   const ballots = useSettledBallots(meetingId, data?.current ?? null);
 
@@ -141,7 +186,13 @@ export function LiveDisplay({ meetingId, canControl = false }: { meetingId: numb
       </header>
 
       {current === null ? (
-        <CheckinStage participants={data.participants} checked={checked} total={total} />
+        <CheckinStage
+          participants={data.participants}
+          checked={checked}
+          total={total}
+          checkinUrl={checkinUrl}
+          checkinQrSvg={checkinQrSvg}
+        />
       ) : (
       <section className="grid grid-cols-1 gap-8 sm:grid-cols-[1fr_auto] sm:items-stretch">
         <div className="rounded-2xl border-4 border-foreground bg-card p-10 shadow-[12px_12px_0_0_var(--color-foreground)]">
