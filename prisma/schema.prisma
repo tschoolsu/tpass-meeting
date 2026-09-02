@@ -1,0 +1,172 @@
+// T-Meeting 資料模型。2026-09-02 由 `prisma db pull` 從既有 t_meeting 庫拉出（原本是 lib/db.ts 啟動時
+// 自建的 DDL），表名／欄位名刻意保留 snake_case、不加 @@map，呼叫端的欄位名才不用動。
+//
+// Prisma 表達不了的 CHECK 約束（title 長度、vote_status IN ('agree','against') 等）活在
+// prisma/migrations/0_init/migration.sql 裡；之後改 schema 一律 `pnpm exec prisma migrate dev`，
+// 需要新的 CHECK 就手動加進該次 migration 的 SQL。
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model agenda_attachments {
+  id             Int          @id @default(autoincrement())
+  agenda_item_id Int
+  filename       String
+  mime           String       @default("application/octet-stream")
+  size           BigInt       @default(0)
+  storage_path   String
+  uploaded_at    DateTime     @default(now()) @db.Timestamptz(6)
+  agenda_items   agenda_items @relation(fields: [agenda_item_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([agenda_item_id], map: "idx_attachments_agenda")
+}
+
+model agenda_items {
+  id                 Int                  @id @default(autoincrement())
+  meeting_id         Int
+  position           Int                  @default(0)
+  title              String
+  description        String               @default("")
+  created_at         DateTime             @default(now()) @db.Timestamptz(6)
+  agenda_attachments agenda_attachments[]
+  meetings           meetings             @relation(fields: [meeting_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  motions            motions[]
+
+  @@index([meeting_id, position], map: "idx_agenda_meeting")
+}
+
+model api_keys {
+  id           Int       @id @default(autoincrement())
+  label        String
+  key_hash     String    @unique
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  last_used_at DateTime? @db.Timestamptz(6)
+}
+
+model ballots {
+  id          Int      @id @default(autoincrement())
+  motion_id   Int
+  voter_email String
+  vote_status String
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  voter_name  String   @default("")
+  motions     motions  @relation(fields: [motion_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([motion_id, voter_email])
+  @@index([motion_id], map: "idx_ballots_motion")
+}
+
+model departments {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique
+  position   Int      @default(0)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model meeting_editors {
+  id         Int      @id @default(autoincrement())
+  meeting_id Int
+  email      String
+  granted_by String
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  name       String   @default("")
+  meetings   meetings @relation(fields: [meeting_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([meeting_id, email])
+  @@index([meeting_id, email], map: "idx_meeting_editors_meeting")
+}
+
+model meeting_notes {
+  id           Int      @id @default(autoincrement())
+  meeting_id   Int
+  author_email String
+  author_name  String
+  body         String
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  author_sub   String?
+  meetings     meetings @relation(fields: [meeting_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([meeting_id, id(sort: Desc)], map: "idx_notes_meeting")
+}
+
+model meetings {
+  id                     Int                  @id @default(autoincrement())
+  title                  String
+  department             String               @default("")
+  meeting_date           DateTime             @db.Date
+  starts_at              DateTime             @db.Timestamptz(6)
+  owner_sub              String
+  owner_email            String
+  owner_name             String
+  voting_enabled         Boolean              @default(false)
+  created_at             DateTime             @default(now()) @db.Timestamptz(6)
+  location               String               @default("")
+  online_link            String               @default("")
+  description            String               @default("")
+  status                 String               @default("draft")
+  current_agenda_item_id Int?
+  agenda_items           agenda_items[]
+  meeting_editors        meeting_editors[]
+  meeting_notes          meeting_notes[]
+  notification_queue     notification_queue[]
+  participants           participants[]
+
+  @@index([meeting_date(sort: Desc), id(sort: Desc)], map: "idx_meetings_date")
+}
+
+model motions {
+  id             Int          @id @default(autoincrement())
+  agenda_item_id Int
+  title          String
+  description    String       @default("")
+  threshold      String       @default("1/2+1/2")
+  status         String       @default("")
+  position       Int          @default(0)
+  created_at     DateTime     @default(now()) @db.Timestamptz(6)
+  opened_at      DateTime?    @db.Timestamptz(6)
+  closed_at      DateTime?    @db.Timestamptz(6)
+  present_count  Int?
+  expected_count Int?
+  result         String?
+  ballots        ballots[]
+  agenda_items   agenda_items @relation(fields: [agenda_item_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([agenda_item_id, position], map: "idx_motions_agenda")
+}
+
+model notification_queue {
+  id              Int       @id @default(autoincrement())
+  meeting_id      Int
+  email           String
+  subject         String
+  body            String
+  status          String    @default("pending")
+  attempts        Int       @default(0)
+  next_attempt_at DateTime  @default(now()) @db.Timestamptz(6)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  sent_at         DateTime? @db.Timestamptz(6)
+  meetings        meetings  @relation(fields: [meeting_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([meeting_id, email], map: "notification_queue_meeting_email_key")
+  @@index([status, next_attempt_at], map: "idx_notification_queue_pending")
+}
+
+model participants {
+  id            Int       @id @default(autoincrement())
+  meeting_id    Int
+  email         String
+  checked_in    Boolean   @default(false)
+  checked_in_at DateTime? @db.Timestamptz(6)
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  grade         String    @default("")
+  name          String    @default("")
+  meetings      meetings  @relation(fields: [meeting_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([meeting_id, email])
+  @@index([meeting_id], map: "idx_participants_meeting")
+}

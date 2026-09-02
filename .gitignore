@@ -52,3 +52,6 @@ next-env.d.ts
 
 # mail→name 對照表（本地維護，不進版控）
 /name-map.csv
+
+# prisma generate 的產物（postinstall 會重新產生）
+/generated
