@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { RichText } from "tpass-ui";
 import { isModerator, requireAccess } from "@/lib/auth";
 import { canViewMeeting, getMeetingDetail, isParticipant } from "@/lib/meetings";
 import { getMeetingBallots } from "@/lib/agenda";
@@ -82,7 +83,7 @@ export default async function ReportPage({
       {meeting.location ? <p className="meta"><b>地點：</b>{meeting.location}</p> : null}
       {meeting.online_link ? <p className="meta"><b>線上：</b>{meeting.online_link}</p> : null}
       <p className="meta"><b>建立者：</b>{meeting.owner_name}</p>
-      {meeting.description ? <p className="meta" style={{ whiteSpace: "pre-wrap" }}>{meeting.description}</p> : null}
+      {meeting.description ? <div className="meta" style={{ whiteSpace: "pre-wrap" }}><RichText text={meeting.description} /></div> : null}
 
       <h2>出席與簽到</h2>
       <p className="meta"><b>應到：</b>{participants.length} 人　<b>已簽到：</b>{checkedCount} 人</p>
@@ -110,7 +111,7 @@ export default async function ReportPage({
       {agenda.map((a) => (
         <div key={a.id}>
           <p className="agenda-title">#{a.position + 1}　{a.title}</p>
-          {a.description ? <p className="agenda-desc">{a.description}</p> : null}
+          {a.description ? <div className="agenda-desc"><RichText text={a.description} /></div> : null}
           {a.motions.length > 0 ? (
             <div className="space-y-3">
               {a.motions.map((m) => (

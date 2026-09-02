@@ -10,6 +10,7 @@ import {
 } from "@/lib/auth";
 import { isStarted } from "@/lib/time";
 import { canTransition } from "@/lib/meeting-status";
+import { canDeleteNote } from "@/lib/note-permissions";
 import { query } from "@/lib/db";
 import { createApiKey, deleteApiKey } from "@/lib/api-keys";
 import { importAll } from "@/lib/backup";
@@ -20,9 +21,11 @@ import {
   canWriteNotes,
   createMeeting,
   deleteMeeting,
+  deleteNote,
   getMeeting,
   getCheckInState,
   getMeetingDetail,
+  getNoteOwner,
   isParticipant,
   rememberEditorName,
   rememberParticipantName,
@@ -488,6 +491,24 @@ export async function noteAction(meetingId: number, body: string): Promise<FormS
 
   await addNote(meetingId, { sub: session.sub, email: session.email, name: session.name }, text);
   await rememberEditorName(meetingId, session.email, session.name);
+  revalidatePath(`/read?id=${meetingId}`);
+  return {};
+}
+
+// 刪除單則會議記錄。權限：admin／創建者可刪任一則，其餘人只能刪自己寫的（見 canDeleteNote）。
+// 用 requireAccess 而不是 requireManager——協作者可能是一般學生，requireManager 會把他們踢去 /forbidden。
+export async function deleteNoteAction(meetingId: number, noteId: number): Promise<FormState> {
+  const session = await requireAccess();
+  const note = await getNoteOwner(noteId);
+  // meeting_id 一定要對得上：否則可以拿自己那場會議的 id 去借權限刪別場的紀錄。
+  if (!note || note.meeting_id !== meetingId) return { error: "找不到這則紀錄" };
+
+  const meeting = await getMeeting(meetingId);
+  if (!meeting) return { error: "找不到這份會議" };
+  if (!canDeleteNote(note, meeting, session, isAdmin(session)))
+    return { error: "你沒有權限刪除這則紀錄" };
+
+  await deleteNote(noteId);
   revalidatePath(`/read?id=${meetingId}`);
   return {};
 }

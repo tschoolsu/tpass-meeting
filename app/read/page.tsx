@@ -4,6 +4,7 @@
 import { notFound } from "next/navigation";
 import { isAdmin, isModerator, requireAccess } from "@/lib/auth";
 import { canViewMeeting, canWriteNotes, getMeetingDetail } from "@/lib/meetings";
+import { canDeleteNote } from "@/lib/note-permissions";
 import { formatTaipei } from "@/lib/time";
 import { bgmInfo } from "@/lib/bgm";
 import { authConfig } from "@/config/auth";
@@ -12,10 +13,11 @@ import { displayName } from "@/lib/names";
 import { MotionOutcomeLine } from "@/components/motion-outcome";
 import { derivePhase, motionLabel, primaryCtaFor, PUBLIC_PHASE_META } from "@/lib/meeting-status";
 import { NoteBar } from "@/components/note-bar";
+import { DeleteNoteButton } from "@/components/delete-note";
 import { BgmPlayer } from "@/components/bgm-player";
 import { MeetingLive } from "@/components/meeting-live";
 import { meetingMetadata } from "@/lib/page-title";
-import { Badge, Card } from "tpass-ui";
+import { Badge, Card, RichText } from "tpass-ui";
 import { LinkButton } from "@/components/link-button";
 
 export const dynamic = "force-dynamic";
@@ -86,9 +88,9 @@ export default async function ReadPage({
           </p>
         ) : null}
         {meeting.description ? (
-          <p className="mt-3 whitespace-pre-wrap rounded-xl border-2 border-foreground bg-secondary px-3 py-2 text-sm font-medium">
-            {meeting.description}
-          </p>
+          <div className="mt-3 whitespace-pre-wrap rounded-xl border-2 border-foreground bg-secondary px-3 py-2 text-sm font-medium">
+            <RichText text={meeting.description} />
+          </div>
         ) : null}
 
         {/* 唯一的主要動作 */}
@@ -136,7 +138,7 @@ export default async function ReadPage({
                   </h3>
                   {a.motions.length > 0 ? <Badge className="bg-tone-green-badge">{a.motions.length} 案表決</Badge> : null}
                 </div>
-                {a.description ? <p className="mt-2 whitespace-pre-wrap text-sm font-medium text-muted-foreground">{a.description}</p> : null}
+                {a.description ? <div className="mt-2 whitespace-pre-wrap text-sm font-medium text-muted-foreground"><RichText text={a.description} /></div> : null}
                 {a.attachments.length > 0 ? (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {a.attachments.map((att) => (
@@ -164,7 +166,7 @@ export default async function ReadPage({
                             </Badge>
                           </div>
                         </div>
-                        {m.description ? <p className="mt-1 text-xs font-medium text-muted-foreground">{m.description}</p> : null}
+                        {m.description ? <div className="mt-1 whitespace-pre-wrap text-xs font-medium text-muted-foreground"><RichText text={m.description} /></div> : null}
                         {m.status !== "" ? (
                           <div className="mt-2 space-y-1">
                             <div className="flex gap-4 font-mono text-sm font-bold">
@@ -216,9 +218,12 @@ export default async function ReadPage({
             <Card key={n.id}>
               <div className="mb-1.5 flex items-center justify-between gap-2">
                 <span className="text-xs font-extrabold">{n.author_name}</span>
-                <span className="font-mono text-[11px] font-bold text-muted-foreground">{formatTaipei(n.created_at)}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[11px] font-bold text-muted-foreground">{formatTaipei(n.created_at)}</span>
+                  {canDeleteNote(n, meeting, session, isAdminUser) ? <DeleteNoteButton meetingId={id} noteId={n.id} /> : null}
+                </div>
               </div>
-              <p className="whitespace-pre-wrap break-words text-sm font-medium leading-relaxed">{n.body}</p>
+              <div className="whitespace-pre-wrap break-words text-sm font-medium leading-relaxed"><RichText text={n.body} /></div>
             </Card>
           ))}
           {notes.length === 0 ? (

@@ -4,11 +4,12 @@
 // 在這裡授權——這是 addNoteEditorAction 唯一的 UI 入口。撤銷尚未提供（已知缺口）。
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Badge, Button, Card, Input } from "tpass-ui";
+import { Badge, Button, Card, Input, RichText } from "tpass-ui";
 import type { MeetingEditor, MeetingNote } from "@/lib/meetings";
 import { addNoteEditorAction } from "@/lib/actions";
 import { formatTaipei } from "@/lib/time";
 import { NoteBar } from "@/components/note-bar";
+import { DeleteNoteButton } from "@/components/delete-note";
 import { displayName } from "@/lib/names";
 
 export function NotesPanel({ meetingId, notes, editors }: { meetingId: number; notes: MeetingNote[]; editors: MeetingEditor[] }) {
@@ -19,9 +20,12 @@ export function NotesPanel({ meetingId, notes, editors }: { meetingId: number; n
           <Card key={n.id} className="p-4 shadow-[2px_2px_0_0_var(--color-foreground)]">
             <div className="mb-1 flex items-center justify-between gap-2">
               <span className="text-xs font-extrabold">{n.author_name}</span>
-              <span className="font-mono text-[11px] font-bold text-muted-foreground">{formatTaipei(n.created_at)}</span>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[11px] font-bold text-muted-foreground">{formatTaipei(n.created_at)}</span>
+                <DeleteNoteButton meetingId={meetingId} noteId={n.id} />
+              </div>
             </div>
-            <p className="whitespace-pre-wrap break-words text-sm font-medium leading-relaxed">{n.body}</p>
+            <div className="whitespace-pre-wrap break-words text-sm font-medium leading-relaxed"><RichText text={n.body} /></div>
           </Card>
         ))}
         {notes.length === 0 ? <p className="text-sm font-medium text-muted-foreground">尚無紀錄。</p> : null}

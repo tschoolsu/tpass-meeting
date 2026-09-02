@@ -39,8 +39,12 @@ export function NoteBar({ meetingId, canNote }: { meetingId: number; canNote: bo
         <Label htmlFor="note-body" className="mb-1.5">
           新增紀錄
         </Label>
-        <p className="mb-3 text-xs font-medium text-muted-foreground">
+        <p className="mb-1 text-xs font-medium text-muted-foreground">
           可貼上會議連結、待辦事項或任何想記錄的內容。
+        </p>
+        {/* 這個功能不寫出來沒人會知道。 */}
+        <p className="mb-3 font-mono text-[11px] font-bold text-muted-foreground">
+          支援 Markdown：**粗體** *斜體* ~~刪除線~~ `程式碼` [連結文字](https://網址)，`---` 是分隔線。不支援 # 標題。
         </p>
         <div className="flex flex-col gap-3 sm:flex-row">
           <Textarea

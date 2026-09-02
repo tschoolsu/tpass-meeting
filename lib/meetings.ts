@@ -91,6 +91,8 @@ export interface MeetingNote {
   id: number;
   author_email: string;
   author_name: string;
+  /** 後補欄位：v1 期間寫的紀錄是 NULL，判「作者本人」時要退回 email 比對。 */
+  author_sub: string | null;
   body: string;
   created_at: string;
 }
@@ -190,7 +192,7 @@ export async function getMeetingDetail(id: number): Promise<MeetingDetail | null
               COALESCE((
                 SELECT json_agg(json_build_object(
                   'id', n.id, 'author_email', n.author_email, 'author_name', n.author_name,
-                  'body', n.body, 'created_at', n.created_at)
+                  'author_sub', n.author_sub, 'body', n.body, 'created_at', n.created_at)
                   ORDER BY n.id DESC)
                 FROM meeting_notes n WHERE n.meeting_id = m.id
               ), '[]'::json) AS notes
@@ -363,6 +365,22 @@ export async function addNote(
      VALUES ($1, $2, $3, $4, $5)`,
     [meetingId, author.email, author.name, author.sub ?? null, body],
   );
+}
+
+// 單則紀錄的擁有者資訊——刪除前用來判權限（不需要 body，別把 5000 字撈進來）。
+export async function getNoteOwner(
+  noteId: number,
+): Promise<{ id: number; meeting_id: number; author_sub: string | null; author_email: string } | null> {
+  const { rows } = await query<{ id: number; meeting_id: number; author_sub: string | null; author_email: string }>(
+    `SELECT id, meeting_id, author_sub, author_email FROM meeting_notes WHERE id = $1`,
+    [noteId],
+  );
+  return rows[0] ?? null;
+}
+
+export async function deleteNote(noteId: number): Promise<boolean> {
+  const { rowCount } = await query(`DELETE FROM meeting_notes WHERE id = $1`, [noteId]);
+  return rowCount > 0;
 }
 
 // ---- 會議記錄權限（需求：Creator + Authorized Member 才可新增/編輯） ----

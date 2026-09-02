@@ -77,6 +77,9 @@ export function MeetingForm({
 
       <Field label="會議說明" htmlFor="description" hint="支援長文，選填">
         <Textarea id="description" name="description" rows={4} placeholder="會議目的、與會須知…" defaultValue={initial?.description} />
+        <p className="mt-1.5 font-mono text-[11px] font-bold text-muted-foreground">
+          支援 Markdown：**粗體** *斜體* ~~刪除線~~ `程式碼` [連結文字](https://網址)，`---` 是分隔線。不支援 # 標題。
+        </p>
       </Field>
 
       {state.error ? (

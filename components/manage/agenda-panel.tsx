@@ -5,7 +5,7 @@
 // 閱讀版在 /read，這裡不重複渲染唯讀清單。
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Badge, Button, Input, Select, Textarea } from "tpass-ui";
+import { Badge, Button, Input, RichText, Select, Textarea } from "tpass-ui";
 import type { AgendaItemFull } from "@/lib/meetings";
 import {
   addAgendaItemAction,
@@ -134,7 +134,7 @@ function AgendaCard({ meetingId, item, index, total }: { meetingId: number; item
             </Button>
           </form>
         ) : item.description ? (
-          <p className="whitespace-pre-wrap text-sm font-medium text-muted-foreground">{item.description}</p>
+          <div className="whitespace-pre-wrap text-sm font-medium text-muted-foreground"><RichText text={item.description} /></div>
         ) : null}
 
         <div className="space-y-2">

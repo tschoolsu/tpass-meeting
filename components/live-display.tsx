@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { RichText } from "tpass-ui";
 import { useLiveState, type LiveAgendaItem, type LiveBallot, type LiveParticipant } from "@/components/live-polling";
 import { motionLabel } from "@/lib/meeting-status";
 import { displayName } from "@/lib/names";
@@ -151,9 +152,9 @@ export function LiveDisplay({ meetingId, canControl = false }: { meetingId: numb
               </p>
               <h2 className="mt-2 text-5xl font-extrabold leading-tight sm:text-6xl">{current.title}</h2>
               {current.description ? (
-                <p className="mt-6 whitespace-pre-wrap text-2xl font-medium text-muted-foreground">
-                  {current.description}
-                </p>
+                <div className="mt-6 whitespace-pre-wrap text-2xl font-medium text-muted-foreground">
+                  <RichText text={current.description} />
+                </div>
               ) : null}
 
               {current.motions.length > 0 ? (
