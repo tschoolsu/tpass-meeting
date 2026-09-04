@@ -181,6 +181,17 @@ export async function importAll(data: unknown): Promise<number> {
   // 整包一個交易：中途任何一筆格式錯就整個回滾，不會留下半份資料。逾時給 60 秒（幾百場會議的量）。
   await prisma.$transaction(
     async (tx) => {
+      // 匯入會 TRUNCATE 全部會議資料：正好有會議在表決中，或剛簽到還在開會，這一 TRUNCATE
+      // 會把進行中的紀錄整個炸掉。守門放交易一開始，跟 TRUNCATE 同一把鎖序列化。
+      const [openMotion, recentCheckIn] = await Promise.all([
+        tx.motions.findFirst({ where: { status: "open" }, select: { id: true } }),
+        tx.participants.findFirst({
+          where: { checked_in_at: { gte: new Date(Date.now() - 6 * 60 * 60 * 1000) } },
+          select: { id: true },
+        }),
+      ]);
+      if (openMotion || recentCheckIn) throw new ValidationError("有進行中的會議，不能匯入");
+
       // 固定字串、沒有參數，Unsafe 只是因為 TRUNCATE 沒有 Prisma API。
       await tx.$executeRawUnsafe(
         "TRUNCATE ballots, agenda_attachments, motions, agenda_items, meeting_notes, participants, meetings RESTART IDENTITY CASCADE",

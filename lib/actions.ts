@@ -432,14 +432,34 @@ export async function addParticipantEmailsAction(meetingId: number, _prev: FormS
     return { error: err instanceof VE ? err.message : "輸入資料不正確" };
   }
 
-  // 已在名單裡的人只更新年級（原本的 ON CONFLICT DO UPDATE）
-  for (const e of entries) {
-    await prisma.participants.upsert({
-      where: { meeting_id_email: { meeting_id: meetingId, email: e.email } },
-      create: { meeting_id: meetingId, email: e.email, grade: e.grade },
-      update: { grade: e.grade },
+  // 已在名單裡的人只更新年級（原本的 ON CONFLICT DO UPDATE）；一次 findMany 分出新增／既有，
+  // 新的一次 createMany，既有的照 grade 分組批次 updateMany，整段包交易避免半批寫入。
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.participants.findMany({
+      where: { meeting_id: meetingId, email: { in: entries.map((e) => e.email) } },
+      select: { email: true },
     });
-  }
+    const existingSet = new Set(existing.map((p) => p.email));
+    const toCreate = entries.filter((e) => !existingSet.has(e.email));
+    const toUpdate = entries.filter((e) => existingSet.has(e.email));
+
+    if (toCreate.length > 0) {
+      await tx.participants.createMany({
+        data: toCreate.map((e) => ({ meeting_id: meetingId, email: e.email, grade: e.grade })),
+        skipDuplicates: true,
+      });
+    }
+
+    const emailsByGrade = new Map<string, string[]>();
+    for (const e of toUpdate) {
+      const list = emailsByGrade.get(e.grade) ?? [];
+      list.push(e.email);
+      emailsByGrade.set(e.grade, list);
+    }
+    for (const [grade, emails] of emailsByGrade) {
+      await tx.participants.updateMany({ where: { meeting_id: meetingId, email: { in: emails } }, data: { grade } });
+    }
+  }, { timeout: 10_000 });
   const added = entries.length;
   await notifyMeetingChanged(meetingId, "edit");
   revalidatePath(`/read?id=${meetingId}`);

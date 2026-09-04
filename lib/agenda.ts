@@ -202,12 +202,15 @@ export async function startVote(meetingId: number, motionId: number): Promise<"o
   if (target.status === "open") return "ok";
   const mid = target.agenda_items.meeting_id;
 
-  await prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx) => {
     const open = await tx.motions.findMany({ where: { status: "open", agenda_items: { meeting_id: mid } }, select: { id: true } });
     for (const o of open) await settleMotion(tx, mid, o.id);
-    await tx.motions.updateMany({ where: { id: motionId, status: "" }, data: { status: "open", opened_at: new Date() } });
+    const { count } = await tx.motions.updateMany({ where: { id: motionId, status: "" }, data: { status: "open", opened_at: new Date() } });
+    if (count > 0) return "ok";
+    // 樂觀鎖沒中：狀態在最初檢查之後、這裡更新之前被別的呼叫改掉了，回頭看現在是什麼狀態再回報。
+    const cur = await tx.motions.findUnique({ where: { id: motionId }, select: { status: true } });
+    return cur?.status === "closed" ? "already-closed" : "ok";
   }, TX);
-  return "ok";
 }
 
 // 停止表決並結算（寫入出席快照與結果）；只動屬於 meetingId 的案。不是 open 回 null。
@@ -287,20 +290,26 @@ export async function submitBallot(
 ): Promise<"ok" | "duplicate" | "not-open" | "invalid"> {
   // ERR-002：防禦性校驗，避免非法投票選項觸發 DB CHECK 例外。
   if (status !== "agree" && status !== "against") return "invalid";
-  const motion = await getMotion(motionId);
-  if (!motion) return "not-open";
-  if (motion.status !== "open") return "not-open"; // 未開始表決禁止投票（需求）
-  try {
-    await prisma.ballots.create({
-      data: { motion_id: motionId, voter_email: voter.email.toLowerCase(), voter_name: voter.name.trim(), vote_status: status },
-      select: { id: true },
-    });
-  } catch (err) {
-    // P2002 = UNIQUE(motion_id, voter_email) 違反：同一人對同一案只能投一次
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") return "duplicate";
-    throw err;
-  }
-  return "ok";
+  return prisma.$transaction(async (tx) => {
+    // FOR UPDATE 鎖住這一列，跟 settleMotion 用同一把鎖序列化：主席按「停止」結算的瞬間
+    // 搶進來的票，會被擋在鎖外面等到結算那個 transaction 提交，再讀到 status 已經是
+    // closed 而回 not-open，不會出現票寫進 ballots 但沒進結算快照的競態。
+    const rows = await tx.$queryRaw<{ status: string }[]>`SELECT status FROM motions WHERE id = ${motionId} FOR UPDATE`;
+    const motionStatus = rows[0]?.status;
+    if (motionStatus === undefined || motionStatus !== "open") return "not-open"; // 不存在或未開放表決（需求）
+
+    try {
+      await tx.ballots.create({
+        data: { motion_id: motionId, voter_email: voter.email.toLowerCase(), voter_name: voter.name.trim(), vote_status: status },
+        select: { id: true },
+      });
+    } catch (err) {
+      // P2002 = UNIQUE(motion_id, voter_email) 違反：同一人對同一案只能投一次
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") return "duplicate";
+      throw err;
+    }
+    return "ok";
+  }, TX);
 }
 
 // ---- 附件（需求：議程附件空間） ----
